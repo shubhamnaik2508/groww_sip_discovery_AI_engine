@@ -23,6 +23,7 @@ describe('Golden Set Evaluation Pipeline', () => {
       journeyStage: 'autopay_failure_recovery',
       entryMethod: 'manual',
       isSynthetic: false,
+      verificationStatus: 'content_verified',
     });
 
     const r2 = await EvidenceService.createManualRecord({
@@ -33,6 +34,7 @@ describe('Golden Set Evaluation Pipeline', () => {
       journeyStage: 'market_dip_reaction',
       entryMethod: 'manual',
       isSynthetic: false,
+      verificationStatus: 'content_verified',
     });
 
     const r3 = await EvidenceService.createManualRecord({
@@ -43,6 +45,7 @@ describe('Golden Set Evaluation Pipeline', () => {
       journeyStage: 'unclear',
       entryMethod: 'manual',
       isSynthetic: false,
+      verificationStatus: 'content_verified',
     });
 
     // 2. Register golden labels
@@ -109,10 +112,16 @@ describe('Golden Set Evaluation Pipeline', () => {
     expect(evalResult.smallSampleWarning).toBe(true);
     expect(evalResult.confusionMatrix.length).toBeGreaterThan(0);
     expect(evalResult.themeMetrics.length).toBeGreaterThan(0);
+    expect(evalResult.diagnostics.journeyStageAgreement.denominator).toBeGreaterThan(0);
+    expect(evalResult.diagnostics.evidenceGroundingAccuracy.denominator).toBeGreaterThan(0);
 
     // Verify latest evaluation retrieval
     const latest = await EvaluationService.getLatestEvaluation();
     expect(latest).not.toBeNull();
     expect(latest?.items.length).toBe(3);
+    expect(latest?.diagnostics.evaluationSampleSize).toBe(3);
+    expect(latest?.genuineSampleSize).toBe(3);
+    expect(latest?.illustrativeSampleSize).toBe(0);
+    expect(latest?.otherSampleSize).toBe(0);
   });
 });

@@ -23,6 +23,7 @@ describe('AI Evaluation Separation & Model Provenance', () => {
       journeyStage: 'autopay_failure_recovery',
       entryMethod: 'manual',
       isSynthetic: false,
+      verificationStatus: 'content_verified',
     });
 
     // 2. Add golden label
@@ -79,6 +80,7 @@ describe('AI Evaluation Separation & Model Provenance', () => {
       journeyStage: 'unclear',
       entryMethod: 'manual',
       isSynthetic: false,
+      verificationStatus: 'content_verified',
     });
 
     await EvaluationService.addGoldenLabel({

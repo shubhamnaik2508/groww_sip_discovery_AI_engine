@@ -4,18 +4,19 @@ import {
   analysisRuns,
   recordAnalyses,
   reviews,
-  goldenLabels,
   failureCases,
   themes,
   researchQuestions,
   contradictions,
   opportunities,
+  evidenceThemeLinks,
 } from '@/db/schema';
 import { EvidenceService } from './evidence';
 import { EvaluationService } from './evaluation';
 import { ReviewService } from './review';
 import { OpportunityService } from './opportunity';
 import { eq, desc } from 'drizzle-orm';
+import { deduplicateEligibleEvidence, isSyntheticFixture } from '@/lib/evidenceEligibility';
 
 export interface EvidenceLogExportData {
   metadata: {
@@ -27,9 +28,21 @@ export interface EvidenceLogExportData {
   };
   summary: {
     totalEvidenceRecords: number;
+    eligibleNonFixtureRecordsCount: number;
+    /** @deprecated Compatibility alias; counts research-eligible records under provenance rules. */
     realRecordsCount: number;
     syntheticRecordsCount: number;
     distinctSourcePlatforms: string[];
+    sourceBreakdown: Array<{
+      platform: string;
+      totalRecords: number;
+      eligibleNonFixtureRecords: number;
+      verifiedRecords: number;
+      unverifiedRecords: number;
+      primaryResearchRecords: number;
+      fixturesExcluded: number;
+      duplicatesExcluded: number;
+    }>;
     dateRange: string;
     duplicateCount: number;
     provenanceBreakdown: {
@@ -62,11 +75,24 @@ export class ExportService {
     await initializeDatabase();
 
     const allRecords = await db.select().from(evidenceRecords).all();
-    const realRecords = allRecords.filter((r) => !r.isSynthetic);
-    const syntheticRecords = allRecords.filter((r) => r.isSynthetic);
+    const eligibleRecords = deduplicateEligibleEvidence(allRecords);
+    const syntheticRecords = allRecords.filter(isSyntheticFixture);
     const duplicateCount = allRecords.filter((r) => r.duplicateOfId).length;
+    const sourceBreakdown = Array.from(new Set(allRecords.map((record) => record.platform))).sort().map((platform) => {
+      const rows = allRecords.filter((record) => record.platform === platform);
+      return {
+        platform,
+        totalRecords: rows.length,
+        eligibleNonFixtureRecords: deduplicateEligibleEvidence(rows).length,
+        verifiedRecords: rows.filter((record) => !isSyntheticFixture(record) && ['content_verified', 'link_checked', 'verified_live'].includes(record.verificationStatus)).length,
+        unverifiedRecords: rows.filter((record) => !isSyntheticFixture(record) && !['content_verified', 'link_checked', 'verified_live'].includes(record.verificationStatus)).length,
+        primaryResearchRecords: rows.filter((record) => ['google_forms', 'user_interview'].includes(record.platform) && !isSyntheticFixture(record)).length,
+        fixturesExcluded: rows.filter(isSyntheticFixture).length,
+        duplicatesExcluded: rows.filter((record) => !isSyntheticFixture(record) && Boolean(record.duplicateOfId)).length,
+      };
+    });
 
-    const dates = allRecords
+    const dates = eligibleRecords
       .map((r) => r.collectedAt)
       .filter(Boolean)
       .sort();
@@ -83,8 +109,15 @@ export class ExportService {
 
     const latestEval = await EvaluationService.getLatestEvaluation();
     const failureList = await ReviewService.listFailureCases();
-    const questions = await db.select().from(researchQuestions).all();
-    const contradictionList = await db.select().from(contradictions).all();
+    const storedQuestions = await db.select().from(researchQuestions).all();
+    const allLinks = await db.select().from(evidenceThemeLinks).all();
+    const eligibleIds = new Set(eligibleRecords.map((record) => record.id));
+    const eligibleThemeIds = new Set(allLinks.filter((link) => eligibleIds.has(link.evidenceId)).map((link) => link.themeId));
+    const questions = storedQuestions.map((question) => question.relatedThemeId && eligibleThemeIds.has(question.relatedThemeId)
+      ? question
+      : { ...question, answerSummary: null });
+    const contradictionList = (await db.select().from(contradictions).all())
+      .filter((item) => eligibleIds.has(item.evidenceAId) && eligibleIds.has(item.evidenceBId));
     const oppList = await OpportunityService.listOpportunities();
     const provBreakdown = await EvidenceService.getProvenanceBreakdown();
 
@@ -92,7 +125,7 @@ export class ExportService {
       metadata: {
         exportDate: new Date().toISOString(),
         engineVersion: '2.0.0-fellowship-graduation',
-        productName: 'Groww (SIP Retention Intelligence)',
+        productName: 'Groww SIP Intelligence Lab (independent academic prototype)',
         businessObjective:
           'Increase percentage of first-time mutual fund investors who maintain an active SIP 12 months after inception (active = >=1 instalment in past 30 days).',
         disclaimer:
@@ -100,14 +133,16 @@ export class ExportService {
       },
       summary: {
         totalEvidenceRecords: allRecords.length,
-        realRecordsCount: realRecords.length,
+        eligibleNonFixtureRecordsCount: eligibleRecords.length,
+        realRecordsCount: eligibleRecords.length,
         syntheticRecordsCount: syntheticRecords.length,
         distinctSourcePlatforms: platforms,
+        sourceBreakdown,
         dateRange,
         duplicateCount,
         provenanceBreakdown: provBreakdown,
         analysisRunsCount: (await db.select().from(analysisRuns).all()).length,
-        totalGoldenLabels: (await db.select().from(goldenLabels).all()).length,
+        totalGoldenLabels: (await EvaluationService.listGoldenLabels()).length,
         documentedFailureCases: failureList.length,
       },
       latestAnalysisRun: latestRun,
@@ -120,7 +155,7 @@ export class ExportService {
         'Absence of Long-Term Retention Data: Public store reviews and social discussions reflect point-in-time sentiments; actual 12-month active continuation must be verified with Groww internal ledger cohort data.',
         'Investor Persona Ambiguity: First-time investor status is rarely stated explicitly by users in app store reviews, necessitating careful handling of unverified context.',
         'Platform Selection Bias: Play Store and Reddit over-index on severe failures (e.g. unexpected bank mandate charges) while satisfied retained users rarely leave unsolicited reviews.',
-        'Small Golden-Set Sample: Evaluation against ~20 curated golden labels provides an initial diagnostic for obvious failure modes, not statistical proof of model generalization.',
+        'Human Evaluation Coverage: Genuine human-label count may be zero or smaller than the intended evaluation sample; the report displays the eligible count, denominator, provider and date. Simulated evaluation is not model performance.',
       ],
     };
   }
@@ -150,6 +185,8 @@ export class ExportService {
     lines.push('## 1. Executive Summary & Provenance Audit');
     lines.push('');
     lines.push(`- **Total Persisted Evidence Records**: ${data.summary.totalEvidenceRecords}`);
+    lines.push(`- **Genuine Research-Eligible Records**: ${data.summary.eligibleNonFixtureRecordsCount}`);
+    lines.push(`- **Fixture Records Excluded from Research Metrics**: ${data.summary.syntheticRecordsCount}`);
     lines.push(`- **Collection Date Window**: ${data.summary.dateRange}`);
     lines.push(`- **Detected Duplicates**: ${data.summary.duplicateCount}`);
     lines.push(`- **Source Platforms Represented**: ${data.summary.distinctSourcePlatforms.join(', ') || 'None'}`);
@@ -166,6 +203,14 @@ export class ExportService {
     lines.push(`| **Synthetic Fixture** | ${data.summary.provenanceBreakdown.syntheticFixture} | Synthetic/illustrative example generated for regression tests. |`);
     lines.push(`| **User-Entered** | ${data.summary.provenanceBreakdown.userEntered} | Ingested via user manual entry or CSV upload; awaiting verification audit. |`);
     lines.push(`| **Unverified** | ${data.summary.provenanceBreakdown.unverified} | Raw record with unverified source link. |`);
+    lines.push('');
+    lines.push('### Source Inventory (All Stored Records, Eligibility Shown Separately)');
+    lines.push('');
+    lines.push('| Platform | Stored | Genuine research eligible | Verified/link-checked | Unverified/user-entered | Primary research | Fixtures excluded | Duplicates excluded |');
+    lines.push('|---|---:|---:|---:|---:|---:|---:|---:|');
+    for (const source of data.summary.sourceBreakdown) {
+      lines.push(`| ${source.platform} | ${source.totalRecords} | ${source.eligibleNonFixtureRecords} | ${source.verifiedRecords} | ${source.unverifiedRecords} | ${source.primaryResearchRecords} | ${source.fixturesExcluded} | ${source.duplicatesExcluded} |`);
+    }
     lines.push('');
 
     // Latest Analysis Run
@@ -204,7 +249,7 @@ export class ExportService {
       lines.push(`- **Evaluation Date**: ${data.latestEvaluation.evaluatedAt || 'unknown'}`);
       lines.push(`- **Golden-Set Size**: ${data.latestEvaluation.totalGoldenRecords} records`);
       lines.push(`> [!NOTE]`);
-      lines.push(`> **Diagnostic Sample Disclaimer (n = ${data.latestEvaluation.totalGoldenRecords})**: Evaluated against manually labelled blind ground-truth examples. This serves as a diagnostic benchmark to surface failure modes and classification alignment, not mathematical proof of broad model generalization.`);
+      lines.push(`> **Diagnostic Sample Disclaimer (n = ${data.latestEvaluation.totalGoldenRecords})**: Evaluated against eligible manually labelled examples. This serves as a diagnostic benchmark to surface failure modes and classification alignment, not mathematical proof of broad model generalization.`);
       lines.push('');
       lines.push(`- **Exact Match Agreement**: **${(data.latestEvaluation.accuracy * 100).toFixed(1)}%** (${data.latestEvaluation.exactMatches}/${data.latestEvaluation.totalGoldenRecords})`);
       if (data.latestEvaluation.abstentionAccuracy !== null) {
@@ -239,7 +284,7 @@ export class ExportService {
       lines.push('');
 
       if (data.latestEvaluation.items && data.latestEvaluation.items.length > 0) {
-        lines.push('### Complete Golden-Set Item Inspection (n=20)');
+        lines.push(`### Complete Golden-Set Item Inspection (n=${data.latestEvaluation.items.length})`);
         lines.push('');
         lines.push('| # | Verbatim Quote Excerpt | Golden Label | AI Prediction | Agreement | Error Category |');
         lines.push('|---|---|---|---|---|---|');
@@ -248,6 +293,27 @@ export class ExportService {
           const matchBadge = item.isMatch ? '✅ Match' : '❌ Mismatch';
           lines.push(`| ${idx + 1} | "${excerpt}" | ${item.actualTheme} | ${item.predictedTheme} | ${matchBadge} | ${item.errorCategory} |`);
         });
+        lines.push('');
+      }
+      if (data.latestEvaluation.diagnostics) {
+        const diagnostics = data.latestEvaluation.diagnostics;
+        lines.push('### Structured Extraction Diagnostics');
+        lines.push('');
+        lines.push('| Measure | Numerator | Denominator | Result |');
+        lines.push('|---|---:|---:|---:|');
+        for (const [label, metric] of [
+          ['Journey-stage agreement', diagnostics.journeyStageAgreement],
+          ['Behaviour extraction coverage', diagnostics.behaviorExtractionCoverage],
+          ['Literal evidence grounding', diagnostics.evidenceGroundingAccuracy],
+          ['Unsupported inference claims', diagnostics.unsupportedInferenceRate],
+          ['Abstention precision', diagnostics.abstentionPrecision],
+          ['Abstention recall', diagnostics.abstentionRecall],
+        ] as const) {
+          const result = metric.denominator ? `${(metric.numerator / metric.denominator * 100).toFixed(1)}%` : 'N/A';
+          lines.push(`| ${label} | ${metric.numerator} | ${metric.denominator} | ${result} |`);
+        }
+        lines.push('');
+        lines.push('Behaviour extraction is coverage against a non-empty human behaviour label, not a semantic quality score. Literal grounding checks source substring matches. Unsupported inference claims count inferences without a matching quoted span; they are diagnostic flags, not adjudicated hallucination labels.');
         lines.push('');
       }
     } else {
@@ -283,6 +349,11 @@ export class ExportService {
         lines.push(`- **Problem Statement**: ${opp.problemStatement}`);
         lines.push(`- **Retention Hypothesis**: ${opp.hypothesisOnRetention}`);
         lines.push(`- **Provisional Status**: ${opp.status.toUpperCase()} (Decision aid, not predictive forecast)`);
+        if (!opp.hasEligibleEvidence) {
+          lines.push(`- **Evidence Eligibility**: Not ranked; no eligible evidence. Excluded fixtures: ${opp.excludedFixtureCount || 0}; excluded duplicates: ${opp.excludedDuplicateCount || 0}.`);
+        } else {
+          lines.push(`- **Eligible Supporting Evidence**: ${opp.eligibleEvidenceCount}`);
+        }
         lines.push('');
         lines.push('#### 7-Criteria Scoring Matrix');
         lines.push('');
@@ -292,6 +363,14 @@ export class ExportService {
           lines.push(`| ${c.criterion.replace(/_/g, ' ')} | ${c.rawScore} | ${Math.round(c.normalizedScore)}% | ${c.basis} | ${c.rationale} |`);
         });
         lines.push('');
+        if (opp.scoreAudit?.length) {
+          lines.push('#### Manual Score Override Audit Trail');
+          lines.push('');
+          lines.push('| Criterion | Previous | New | Reviewer | Rationale | Date |');
+          lines.push('|---|---:|---:|---|---|---|');
+          for (const audit of opp.scoreAudit) lines.push(`| ${audit.criterion} | ${audit.previousScore ?? 'unset'} | ${audit.newScore} | ${audit.scoredBy} | ${audit.rationale} | ${audit.createdAt} |`);
+          lines.push('');
+        }
         lines.push('#### Weight Sensitivity Scenarios');
         lines.push('');
         lines.push('| Preset Strategy | Weight Focus | Calculated Composite Score |');
@@ -352,4 +431,5 @@ export class ExportService {
     return EvidenceService.exportToCsv({ excludeSynthetic: false });
   }
 }
+
 

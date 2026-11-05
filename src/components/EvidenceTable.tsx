@@ -23,6 +23,7 @@ interface EvidenceRecordItem {
   };
   entryMethod: string;
   isSynthetic: boolean;
+  provenanceCategory?: string;
   verificationStatus?: 'content_verified' | 'link_checked' | 'user_entered' | 'unverified' | 'synthetic_fixture' | string | null;
   verifiedAt?: string | null;
   verifiedBy?: string | null;
@@ -114,14 +115,14 @@ export function EvidenceTable({ initialRecords }: { initialRecords: EvidenceReco
     setBatchMsg(null);
     startBatchTransition(async () => {
       const res = await runBatchAnalysisAction({
-        providerName: 'fake',
         maxRecords: 50,
+        skipAlreadyAnalyzed: true,
       });
 
       if (res.success && res.summary) {
         setBatchMsg({
           type: 'success',
-          text: `Batch run completed: ${res.summary.successfulRecords} analyzed, ${res.summary.failedRecords} failed out of ${res.summary.totalRecords} total.`,
+          text: `Configured provider ${res.summary.provider} analyzed ${res.summary.successfulRecords} record(s); ${res.summary.failedRecords} failed out of ${res.summary.totalRecords}. Fixture results remain illustrative.`,
         });
       } else {
         setBatchMsg({
@@ -455,7 +456,7 @@ export function EvidenceTable({ initialRecords }: { initialRecords: EvidenceReco
                               </span>
                             )}
                           </div>
-                          <a
+                          {record.isSynthetic ? <span className="badge badge-amber" style={{ fontSize: '10px' }}>{record.provenanceCategory?.replace(/_/g, ' ') || 'Synthetic illustrative fixture'} · excluded from genuine support</span> : <a
                             href={record.sourceUrl}
                             target="_blank"
                             rel="noopener noreferrer"
@@ -472,7 +473,7 @@ export function EvidenceTable({ initialRecords }: { initialRecords: EvidenceReco
                             }}
                           >
                             {record.sourceUrl.replace(/^https?:\/\/(www\.)?/, '')}
-                          </a>
+                          </a>}
                         </div>
                       </td>
 
@@ -505,7 +506,7 @@ export function EvidenceTable({ initialRecords }: { initialRecords: EvidenceReco
                               const isVerified = status === 'content_verified' || status === 'verified_live' || status === 'verified';
                               const isLinkChecked = status === 'link_checked';
                               const isUser = status === 'user_entered';
-                              const isSynth = status === 'synthetic_fixture' || status === 'curated_benchmark';
+                              const isSynth = record.isSynthetic || status === 'synthetic_fixture' || status === 'curated_benchmark';
 
                               const badgeColor = isVerified
                                 ? 'var(--emerald-400)'
@@ -518,13 +519,13 @@ export function EvidenceTable({ initialRecords }: { initialRecords: EvidenceReco
                                 : 'var(--text-muted)';
 
                               const badgeText = isVerified
-                                ? 'Content Verified'
+                                ? record.provenanceCategory === 'primary_research' ? 'Primary Research · User Supplied' : 'Verified Genuine Public Evidence'
                                 : isLinkChecked
                                 ? 'Link Checked'
                                 : isUser
                                 ? 'User-Entered'
                                 : isSynth
-                                ? 'Synthetic Fixture'
+                                ? record.provenanceCategory?.replace(/_/g, ' ') || 'Synthetic Fixture'
                                 : 'Unverified';
 
                               return (

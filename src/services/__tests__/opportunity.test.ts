@@ -32,6 +32,7 @@ describe('Opportunity Scoring & Transparent Prioritization', () => {
       journeyStage: 'autopay_failure_recovery',
       entryMethod: 'manual',
       isSynthetic: false,
+      verificationStatus: 'content_verified',
     });
 
     const r2 = await EvidenceService.createManualRecord({
@@ -42,6 +43,7 @@ describe('Opportunity Scoring & Transparent Prioritization', () => {
       journeyStage: 'autopay_failure_recovery',
       entryMethod: 'manual',
       isSynthetic: false,
+      verificationStatus: 'content_verified',
     });
 
     // Exact duplicate of r1
@@ -53,6 +55,18 @@ describe('Opportunity Scoring & Transparent Prioritization', () => {
       journeyStage: 'autopay_failure_recovery',
       entryMethod: 'manual',
       isSynthetic: false,
+      verificationStatus: 'content_verified',
+    });
+
+    const fixture = await EvidenceService.createManualRecord({
+      sourceUrl: 'https://example.invalid/synthetic-fixture',
+      platform: 'youtube',
+      collectedAt: '2026-06-04',
+      originalText: 'Synthetic fixture describing a fictional SIP payment experience.',
+      journeyStage: 'autopay_failure_recovery',
+      entryMethod: 'fixture',
+      isSynthetic: true,
+      verificationStatus: 'synthetic_fixture',
     });
 
     // Link all 3 records to the theme
@@ -60,6 +74,7 @@ describe('Opportunity Scoring & Transparent Prioritization', () => {
       { id: crypto.randomUUID(), evidenceId: r1.id, themeId, role: 'supports', source: 'ai' },
       { id: crypto.randomUUID(), evidenceId: r2.id, themeId, role: 'supports', source: 'ai' },
       { id: crypto.randomUUID(), evidenceId: r3.id, themeId, role: 'supports', source: 'ai' },
+      { id: crypto.randomUUID(), evidenceId: fixture.id, themeId, role: 'supports', source: 'ai' },
     ]);
 
     // 3. Create candidate opportunity
@@ -101,10 +116,35 @@ describe('Opportunity Scoring & Transparent Prioritization', () => {
     expect(result).not.toBeNull();
     // Verify duplicate was COLLAPSED: exactly 2 independent records, not 3!
     expect(result?.independentRecordCount).toBe(2);
+    expect(result?.syntheticFixtureCount).toBe(1);
     // Source diversity: play_store + reddit = 2 distinct platforms
     expect(result?.sourceDiversityCount).toBe(2);
+    expect(DEFAULT_OPPORTUNITY_WEIGHTS).toEqual({
+      evidenceStrength: 20,
+      independentRecords: 15,
+      sourceDiversity: 10,
+      userImpact: 20,
+      businessMetricLink: 15,
+      researchUncertainty: 10,
+      potentialFeasibility: 10,
+    });
     // Since independentRecordCount is 2 (< 3), it should be flagged as thin evidence
     expect(result?.isThinEvidence).toBe(true);
     expect(result?.compositeScore).toBeGreaterThan(0);
+
+    const override = await OpportunityService.updateHumanScore({
+      opportunityId,
+      criterion: 'user_impact',
+      score: 3.7,
+      rationale: 'Revised after reviewing the two independent records and one duplicate.',
+      scoredBy: 'Human Reviewer',
+    });
+    expect(override).toMatchObject({ previousScore: 4.5, newScore: 3.7 });
+    expect(override.auditId).toBeTruthy();
+    const listed = await OpportunityService.listOpportunities();
+    expect(listed[0].scoreAudit[0]).toMatchObject({ previousScore: 4.5, newScore: 3.7, scoredBy: 'Human Reviewer' });
+    expect(listed[0]).toMatchObject({ totalLinkedEvidenceCount: 4, eligibleEvidenceCount: 2, illustrativeEvidenceCount: 1 });
+    expect(listed[0].illustrativeEvidence[0]).toMatchObject({ id: fixture.id, isSynthetic: true });
+    expect(listed[0].linkedEvidence.every((row: { isSynthetic?: boolean }) => !row.isSynthetic)).toBe(true);
   });
 });

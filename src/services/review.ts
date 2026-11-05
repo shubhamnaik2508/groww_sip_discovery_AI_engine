@@ -1,7 +1,8 @@
 import { db, initializeDatabase } from '@/db';
 import { reviews, recordAnalyses, evidenceRecords, failureCases, themes, evidenceThemeLinks } from '@/db/schema';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import crypto from 'crypto';
+import { isGenuineResearchEvidence } from '@/lib/evidenceEligibility';
 
 export type ReviewDecision = 'confirmed' | 'corrected' | 'rejected';
 
@@ -79,7 +80,7 @@ export class ReviewService {
       const revisedThemeName = input.revisedOutput.themeName.trim();
       const slug = revisedThemeName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
-      let themeRecord = await db.select().from(themes).where(eq(themes.slug, slug)).limit(1);
+      const themeRecord = await db.select().from(themes).where(eq(themes.slug, slug)).limit(1);
       let themeId: string;
 
       if (themeRecord.length === 0) {
@@ -148,13 +149,19 @@ export class ReviewService {
         evidenceText: evidenceRecords.originalText,
         sourceUrl: evidenceRecords.sourceUrl,
         platform: evidenceRecords.platform,
+        entryMethod: evidenceRecords.entryMethod,
+        isSynthetic: evidenceRecords.isSynthetic,
+        verificationStatus: evidenceRecords.verificationStatus,
+        duplicateOfId: evidenceRecords.duplicateOfId,
+        fieldProvenance: evidenceRecords.fieldProvenance,
+        sourceMetadata: evidenceRecords.sourceMetadata,
       })
       .from(failureCases)
       .innerJoin(evidenceRecords, eq(failureCases.evidenceId, evidenceRecords.id))
       .orderBy(desc(failureCases.createdAt))
       .all();
 
-    return cases.map((c) => ({
+    return cases.filter((c) => isGenuineResearchEvidence(c)).map((c) => ({
       ...c,
       originalPrediction: typeof c.originalPrediction === 'string' && c.originalPrediction.startsWith('{')
         ? JSON.parse(c.originalPrediction)
@@ -170,12 +177,17 @@ export class ReviewService {
    */
   static async getReviewStats() {
     await initializeDatabase();
-    const allReviews = await db.select().from(reviews).all();
+    const [storedReviews, allRecords] = await Promise.all([
+      db.select().from(reviews).all(),
+      db.select().from(evidenceRecords).all(),
+    ]);
+    const eligibleIds = new Set(allRecords.filter(isGenuineResearchEvidence).map((record) => record.id));
+    const allReviews = storedReviews.filter((review) => eligibleIds.has(review.evidenceId));
     const confirmed = allReviews.filter((r) => r.decision === 'confirmed').length;
     const corrected = allReviews.filter((r) => r.decision === 'corrected').length;
     const rejected = allReviews.filter((r) => r.decision === 'rejected').length;
 
-    const failureCaseCount = (await db.select().from(failureCases).all()).length;
+    const failureCaseCount = (await this.listFailureCases()).length;
 
     return {
       totalReviewed: allReviews.length,
@@ -188,3 +200,4 @@ export class ReviewService {
     };
   }
 }
+

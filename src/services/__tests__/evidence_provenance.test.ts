@@ -95,6 +95,7 @@ describe('Evidence Provenance & Opportunity Deduplication', () => {
       journeyStage: 'first_instalment',
       entryMethod: 'manual',
       isSynthetic: false,
+      verificationStatus: 'content_verified',
     });
 
     // Ingest duplicate record (identical text)
@@ -106,6 +107,7 @@ describe('Evidence Provenance & Opportunity Deduplication', () => {
       journeyStage: 'first_instalment',
       entryMethod: 'manual',
       isSynthetic: false,
+      verificationStatus: 'content_verified',
     });
 
     // Ingest another distinct record
@@ -117,6 +119,7 @@ describe('Evidence Provenance & Opportunity Deduplication', () => {
       journeyStage: 'first_instalment',
       entryMethod: 'manual',
       isSynthetic: false,
+      verificationStatus: 'content_verified',
     });
 
     // Link all 3 records to the theme

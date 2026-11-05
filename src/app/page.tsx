@@ -2,17 +2,19 @@ import Link from 'next/link';
 import { db, initializeDatabase } from '@/db';
 import {
   evidenceRecords,
-  analysisRuns,
   recordAnalyses,
+  analysisRuns,
   reviews,
   goldenLabels,
-  failureCases,
   themes,
-  opportunities,
+  evidenceThemeLinks,
+  evaluationRuns,
 } from '@/db/schema';
-import { desc, eq, sql } from 'drizzle-orm';
+import { desc } from 'drizzle-orm';
 import { SeedButton } from '@/components/SeedButton';
 import { EvidenceService } from '@/services/evidence';
+import { OpportunityService } from '@/services/opportunity';
+import { classifyEvidenceProvenance, deduplicateEligibleEvidence, isGenuineResearchEvidence, isSyntheticFixture } from '@/lib/evidenceEligibility';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,29 +22,53 @@ export default async function IntelligenceOverviewPage() {
   await initializeDatabase();
 
   const allRecords = await db.select().from(evidenceRecords).all();
-  const realRecords = allRecords.filter((r) => !r.isSynthetic);
-  const syntheticRecords = allRecords.filter((r) => r.isSynthetic);
+  const eligibleRecords = deduplicateEligibleEvidence(allRecords);
+  const eligibleRecordIds = new Set(eligibleRecords.map((r) => r.id));
+  const fixtureCount = allRecords.filter(isSyntheticFixture).length;
+  const genuineById = new Set(eligibleRecords.map((record) => record.id));
   const provBreakdown = await EvidenceService.getProvenanceBreakdown();
+  const provenanceCounts = new Map<string, number>();
+  const sourceCounts = new Map<string, number>();
+  for (const record of allRecords) {
+    const category = classifyEvidenceProvenance(record);
+    provenanceCounts.set(category, (provenanceCounts.get(category) ?? 0) + 1);
+    sourceCounts.set(record.platform, (sourceCounts.get(record.platform) ?? 0) + 1);
+  }
 
-  const analyses = await db.select().from(recordAnalyses).all();
-  const allReviews = await db.select().from(reviews).all();
-  const goldens = await db.select().from(goldenLabels).all();
-  const failures = await db.select().from(failureCases).all();
-  const allThemes = await db.select().from(themes).all();
-  const allOpps = await db.select().from(opportunities).all();
+  const [storedAnalyses, storedReviews, storedGoldens, storedThemes, themeLinks, runs, evaluationHistory] = await Promise.all([
+    db.select().from(recordAnalyses).all(),
+    db.select().from(reviews).all(),
+    db.select().from(goldenLabels).all(),
+    db.select().from(themes).all(),
+    db.select().from(evidenceThemeLinks).all(),
+    db.select().from(analysisRuns).all(),
+    db.select().from(evaluationRuns).all(),
+  ]);
+  const fakeRunIds = new Set(runs.filter((run) => run.provider === 'fake').map((run) => run.id));
+  const fakeAnalysisIds = new Set(storedAnalyses.filter((analysis) => fakeRunIds.has(analysis.runId)).map((analysis) => analysis.id));
+  const analyzedRecordIds = new Set(storedAnalyses.filter((analysis) => analysis.validationStatus === 'valid').map((analysis) => analysis.evidenceId));
+  const genuineAnalyzedIds = new Set([...analyzedRecordIds].filter((id) => genuineById.has(id) && storedAnalyses.some((analysis) => analysis.evidenceId === id && analysis.validationStatus === 'valid' && !fakeRunIds.has(analysis.runId))));
+  const allReviews = storedReviews;
+  const goldens = storedGoldens;
+  const allThemes = storedThemes;
+  const allOpps = await OpportunityService.listOpportunities();
+  const genuineThemeIds = new Set(themeLinks.filter((link) => eligibleRecordIds.has(link.evidenceId) && !(link.source === 'ai' && link.recordAnalysisId && fakeAnalysisIds.has(link.recordAnalysisId))).map((link) => link.themeId));
+  const illustrativeThemeIds = new Set(themeLinks.filter((link) => allRecords.some((record) => record.id === link.evidenceId && isSyntheticFixture(record))).map((link) => link.themeId));
+  const genuineBackedOpportunities = allOpps.filter((opp) => opp.hasEligibleEvidence).length;
+  const reviewedIds = new Set(allReviews.map((review) => review.evidenceId));
+  const genuineReviewedCount = [...reviewedIds].filter((id) => eligibleRecordIds.has(id)).length;
+  const illustrativeReviewedCount = [...reviewedIds].filter((id) => allRecords.some((record) => record.id === id && isSyntheticFixture(record))).length;
+  const unverifiedReviewedCount = Math.max(0, reviewedIds.size - genuineReviewedCount - illustrativeReviewedCount);
+  const runProvider = new Map(runs.map((run) => [run.id, run.provider]));
+  const genuineEvaluationCount = evaluationHistory.filter((evaluation) => !evaluation.isSimulated && evaluation.provider !== 'fake' && runProvider.get(evaluation.analysisRunId) !== 'fake').length;
 
-  const platforms = Array.from(new Set(allRecords.map((r) => r.platform)));
   const confirmedCount = allReviews.filter((r) => r.decision === 'confirmed').length;
   const correctedCount = allReviews.filter((r) => r.decision === 'corrected').length;
   const rejectedCount = allReviews.filter((r) => r.decision === 'rejected').length;
 
-  const agreementRate = allReviews.length > 0 ? ((confirmedCount / allReviews.length) * 100).toFixed(1) : null;
-
-  const recentRecords = await db
-    .select()
-    .from(evidenceRecords)
-    .orderBy(desc(evidenceRecords.createdAt))
-    .limit(6);
+  const recentRecords = allRecords
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 6);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
@@ -55,7 +81,7 @@ export default async function IntelligenceOverviewPage() {
           </div>
           <h1>Intelligence Overview</h1>
           <p style={{ color: 'var(--text-secondary)', maxWidth: '720px', marginTop: '6px', fontSize: '14px' }}>
-            Discovering root causes of first-time mutual fund investor attrition 12 months after SIP initiation. Grounded strictly in public investor feedback without predetermining the solution.
+            Exploring reported investor experiences that may relate to continued SIP use. Evidence summaries describe the available sample and do not establish root causes or cohort retention.
           </p>
         </div>
 
@@ -78,7 +104,7 @@ export default async function IntelligenceOverviewPage() {
           <div>
             <h3 style={{ fontSize: '18px', color: 'var(--text-primary)' }}>12-Month Active SIP Retention</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginTop: '4px' }}>
-              Increase the percentage of first-time mutual fund investors who still maintain an active SIP 12 months after their first debit.
+              Percentage of eligible first-time mutual fund investors who still have at least one active SIP 12 months after starting their first SIP.
             </p>
           </div>
           <div style={{ borderLeft: '1px solid var(--border-subtle)', paddingLeft: '16px' }}>
@@ -89,7 +115,7 @@ export default async function IntelligenceOverviewPage() {
               &quot;At least one successful instalment in the last 30 days.&quot;
             </p>
             <p style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '4px' }}>
-              Any pause, mandate drop, or uncorrected payment failure exceeding 30 days is classified as churned.
+              Calculation requires cohort and successful-instalment data that this research prototype does not contain. A failed instalment alone is not treated as churn.
             </p>
           </div>
         </div>
@@ -112,15 +138,25 @@ export default async function IntelligenceOverviewPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span className="badge badge-amber" style={{ fontSize: '11px' }}>Provenance Audit</span>
           <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
-            <strong>Evidence Status:</strong> {provBreakdown.contentVerified + provBreakdown.linkChecked} verified evidence, {provBreakdown.unverified + provBreakdown.userEntered} unverified submissions, {provBreakdown.syntheticFixture} synthetic fixtures (dev/test)
+            <strong>Evidence Status:</strong> {allRecords.length} total · {eligibleRecords.length} genuine eligible · {provBreakdown.contentVerified} content-verified public · {provBreakdown.linkChecked} link-checked · {provBreakdown.unverified + provBreakdown.userEntered} unverified/user-entered · {provBreakdown.syntheticFixture} illustrative
           </span>
         </div>
         <div style={{ display: 'flex', gap: '8px', fontSize: '11px', flexWrap: 'wrap' }}>
-          <span className="badge badge-emerald">Verified: {provBreakdown.contentVerified + provBreakdown.linkChecked}</span>
-          <span className="badge badge-amber">Unverified / User: {provBreakdown.unverified + provBreakdown.userEntered}</span>
-          <span className="badge badge-zinc">Synthetic Fixtures: {provBreakdown.syntheticFixture}</span>
+          <span className="badge badge-emerald">Content verified: {provBreakdown.contentVerified}</span>
+          <span className="badge badge-amber">Link checked only: {provBreakdown.linkChecked}</span>
+          <span className="badge badge-neutral">Pending / user-entered: {provBreakdown.unverified + provBreakdown.userEntered}</span>
+          <span className="badge badge-zinc">Illustrative: {provBreakdown.syntheticFixture}</span>
         </div>
       </div>
+
+      <section className="card" aria-label="Evidence coverage by source and provenance">
+        <h2 style={{ fontSize: 15 }}>Evidence coverage by source and provenance</h2>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Record counts, not unique investors. Illustrative and duplicate records remain visible and are excluded from genuine research support.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginTop: 12 }}>
+          <div><strong style={{ fontSize: 12 }}>Provenance</strong>{[...provenanceCounts.entries()].map(([label, count]) => <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginTop: 6 }}><span>{label.replace(/_/g, ' ')}</span><strong>{count}</strong></div>)}</div>
+          <div><strong style={{ fontSize: 12 }}>Source platform</strong>{[...sourceCounts.entries()].map(([label, count]) => <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginTop: 6 }}><span>{label.replace(/_/g, ' ')}</span><strong>{count}</strong></div>)}</div>
+        </div>
+      </section>
 
       {/* Pipeline Funnel Metrics */}
       <div>
@@ -129,42 +165,42 @@ export default async function IntelligenceOverviewPage() {
         </h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
           <div className="card">
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>1. Evidence Ingested</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>1. Records Stored</span>
             <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
               {allRecords.length}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-              {provBreakdown.contentVerified + provBreakdown.linkChecked} verified · {provBreakdown.unverified + provBreakdown.userEntered} unverified · {provBreakdown.syntheticFixture} synthetic fixtures
+              {allRecords.length - allRecords.filter((r) => r.duplicateOfId).length} available for analysis · {eligibleRecords.length} genuine eligible · {allRecords.filter((r) => r.duplicateOfId).length} duplicates
             </div>
           </div>
 
           <div className="card">
             <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>2. AI Analyzed</span>
             <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--blue-400)', marginTop: '4px' }}>
-              {analyses.length}
+              {analyzedRecordIds.size}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-              Structured Zod schemas &amp; guards
+              {genuineAnalyzedIds.size} genuine analyzed · includes illustrative analyses
             </div>
           </div>
 
           <div className="card">
             <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>3. Human Reviewed</span>
             <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--purple-400)', marginTop: '4px' }}>
-              {allReviews.length}
+              {reviewedIds.size}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-              {confirmedCount} confirmed · {correctedCount} corrected · {rejectedCount} rejected
+              {genuineReviewedCount} genuine · {illustrativeReviewedCount} illustrative · {unverifiedReviewedCount} other/ineligible · {confirmedCount} confirmed · {correctedCount} corrected · {rejectedCount} rejected
             </div>
           </div>
 
           <div className="card">
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>4. Golden Evaluated</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>4. Golden-Set Evaluations</span>
             <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--emerald-400)', marginTop: '4px' }}>
-              {goldens.length}
+              {evaluationHistory.length}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-              {agreementRate ? `${agreementRate}% agreement (n=${goldens.length} diagnostic)` : 'Pending eval run'}
+              {goldens.length} stored labels ({storedGoldens.filter((label) => eligibleRecordIds.has(label.evidenceId)).length} genuine) · {genuineEvaluationCount} genuine evaluations · {evaluationHistory.length - genuineEvaluationCount} simulated / legacy illustrative
             </div>
           </div>
 
@@ -174,7 +210,7 @@ export default async function IntelligenceOverviewPage() {
               {allThemes.length}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-              {allOpps.length} candidate opportunities
+              {genuineThemeIds.size} genuine-backed · {illustrativeThemeIds.size} illustrative themes · {allOpps.length} opportunities ({genuineBackedOpportunities} genuine-backed)
             </div>
           </div>
         </div>
@@ -184,9 +220,9 @@ export default async function IntelligenceOverviewPage() {
       {allRecords.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '60px 20px', borderStyle: 'dashed' }}>
           <div style={{ fontSize: '40px', marginBottom: '12px' }}>📂</div>
-          <h2 style={{ fontSize: '20px', marginBottom: '8px' }}>No Evidence Records Ingested Yet</h2>
+          <h2 style={{ fontSize: '20px', marginBottom: '8px' }}>No Evidence Records Yet</h2>
           <p style={{ color: 'var(--text-secondary)', maxWidth: '520px', margin: '0 auto 24px', fontSize: '13px' }}>
-            The Groww SIP Intelligence Lab is an evidence-first engine. To discover root causes, either upload your own research CSV or load the curated NextLeap Fellowship benchmark set (20 authentic feedback records across Play Store, Reddit, and Twitter).
+            {fixtureCount > 0 ? `${fixtureCount} synthetic or curated benchmark records are available for exploration and excluded from genuine research support. ` : ''}Import public evidence or primary research through CSV or manual entry to expand discovery.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
             <SeedButton hasData={false} />
@@ -203,11 +239,11 @@ export default async function IntelligenceOverviewPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ fontSize: '15px' }}>Recent Evidence Feed</h3>
               <Link href="/evidence" style={{ fontSize: '12px', color: 'var(--emerald-400)' }}>
-                View All ({allRecords.length}) →
+              View All ({allRecords.length}) →
               </Link>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {recentRecords.map((rec) => (
+              {recentRecords.length === 0 ? <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>No evidence has been imported yet.</p> : recentRecords.map((rec) => (
                 <div
                   key={rec.id}
                   style={{
@@ -220,6 +256,7 @@ export default async function IntelligenceOverviewPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                       <span className="badge badge-neutral" style={{ fontSize: '10px' }}>{rec.platform}</span>
+                      <span className={`badge ${isSyntheticFixture(rec) ? 'badge-amber' : isGenuineResearchEvidence(rec) ? 'badge-emerald' : 'badge-neutral'}`} style={{ fontSize: 10 }}>{classifyEvidenceProvenance(rec).replace(/_/g, ' ')}</span>
                       <span className="badge badge-emerald" style={{ fontSize: '10px' }}>{rec.journeyStage.replace(/_/g, ' ')}</span>
                     </div>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{rec.collectedAt}</span>
@@ -312,3 +349,4 @@ export default async function IntelligenceOverviewPage() {
     </div>
   );
 }
+

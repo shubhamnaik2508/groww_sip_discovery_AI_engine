@@ -9,7 +9,7 @@ export function SeedButton({ hasData }: { hasData: boolean }) {
   const handleSeed = () => {
     if (hasData) {
       const confirmed = window.confirm(
-        'This will populate the Fellowship Benchmark Set (20 authentic records, golden labels, failure cases, and opportunities). Continue?'
+        'This loads curated benchmark fixture records, simulated analyses and sample labels for the unified discovery views. They remain illustrative and never count as genuine investor research. Continue?'
       );
       if (!confirmed) return;
     }
@@ -29,7 +29,7 @@ export function SeedButton({ hasData }: { hasData: boolean }) {
       className={hasData ? 'btn btn-secondary' : 'btn btn-primary'}
       style={{ fontSize: '13px' }}
     >
-      {isPending ? '⏳ Loading Benchmark Set...' : '🌱 Load Benchmark Dataset (20 Records)'}
+      {isPending ? '⏳ Loading Benchmark Fixtures...' : 'Load Curated Benchmark Fixtures'}
     </button>
   );
 }

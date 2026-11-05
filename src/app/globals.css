@@ -680,3 +680,43 @@ input:focus, textarea:focus, select:focus {
     color: HighlightText;
   }
 }
+
+.evidence-log-document {
+  max-width: 960px;
+  margin: 0 auto;
+  background: #fff;
+  color: #17212b;
+  padding: 40px;
+  font-family: Arial, sans-serif;
+  line-height: 1.5;
+}
+.document-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 28px; }
+.document-actions p { flex-basis: 100%; color: #52606d; font-size: 12px; }
+.document-cover { border-bottom: 2px solid #00a77b; padding-bottom: 24px; margin-bottom: 24px; }
+.document-kicker { color: #008866; font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+.document-cover h1 { color: #10241e; font-size: 34px; margin: 12px 0; }
+.document-cover p { margin-top: 6px; }
+.document-disclaimer, .empty-note { border-left: 3px solid #e0a000; background: #fff8e7; padding: 10px 12px; margin-top: 12px; }
+.evidence-log-document section { margin: 24px 0; break-inside: avoid; }
+.evidence-log-document h2 { font-size: 19px; color: #123b30; margin-bottom: 8px; }
+.evidence-log-document h3 { font-size: 14px; margin: 8px 0; }
+.evidence-log-document p, .evidence-log-document li { font-size: 12px; }
+.evidence-log-document table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 10px; }
+.evidence-log-document th, .evidence-log-document td { border: 1px solid #cbd5df; padding: 6px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.evidence-log-document th { background: #eef5f2; }
+.evidence-log-document a { color: #007d5e; }
+.evidence-log-document ul { padding-left: 20px; }
+.evidence-log-document li { margin: 5px 0; }
+.correction { border-top: 1px solid #cbd5df; padding-top: 10px; margin-top: 12px; break-inside: avoid; }
+.evidence-log-document footer { border-top: 1px solid #cbd5df; padding-top: 12px; font-size: 10px; color: #52606d; }
+@media print {
+  @page { size: A4; margin: 15mm; }
+  html, body { background: #fff !important; color: #17212b !important; }
+  body * { visibility: hidden; }
+  .evidence-log-document, .evidence-log-document * { visibility: visible; }
+  .evidence-log-document { position: absolute; left: 0; top: 0; width: 100%; max-width: none; padding: 0; margin: 0; }
+  .no-print { display: none !important; }
+  .evidence-log-document section { break-inside: auto; }
+  .evidence-log-document table, .correction { break-inside: avoid; }
+  a { color: #007d5e !important; text-decoration: underline; }
+}

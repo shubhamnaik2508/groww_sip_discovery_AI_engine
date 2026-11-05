@@ -81,11 +81,15 @@ export function mapCsvRowToRecordInput(row: RawCsvRow, rowNumber: number): {
   if (rawPlatform === 'twitter' || rawPlatform === 'x') rawPlatform = 'twitter_x';
   if (rawPlatform === 'google_play' || rawPlatform === 'playstore' || rawPlatform === 'play_store') rawPlatform = 'play_store';
   if (rawPlatform === 'appstore' || rawPlatform === 'apple_store' || rawPlatform === 'app_store') rawPlatform = 'app_store';
+  if (rawPlatform === 'tradingqna' || rawPlatform === 'tradingq&a' || rawPlatform === 'trading_qa') rawPlatform = 'trading_qa';
+  if (rawPlatform === 'google_form' || rawPlatform === 'google_forms' || rawPlatform === 'survey') rawPlatform = 'google_forms';
 
   const validPlatforms: Platform[] = [
     'play_store',
     'app_store',
     'reddit',
+    'trading_qa',
+    'google_forms',
     'twitter_x',
     'youtube',
     'community_forum',
@@ -141,11 +145,34 @@ export function mapCsvRowToRecordInput(row: RawCsvRow, rowNumber: number): {
   }
 
   // Extra metadata
-  const sourceMetadata: Record<string, any> = {};
+  const sourceMetadata: Record<string, string> = {};
   if (row.author) sourceMetadata.author = row.author.trim();
   if (row.rating) sourceMetadata.rating = row.rating.trim();
   if (row.upvotes) sourceMetadata.upvotes = row.upvotes.trim();
   if (row.title) sourceMetadata.title = row.title.trim();
+  const metadataAliases: Record<string, string[]> = {
+    authorId: ['author_id', 'anonymized_author_id', 'author'],
+    publishedAt: ['published_at', 'publication_date', 'date_posted'],
+    language: ['language', 'lang'],
+    evidenceType: ['evidence_type', 'record_type'],
+    investorSegment: ['investor_segment', 'segment'],
+    participantId: ['participant_id', 'anonymized_participant_id'],
+    segmentQualification: ['segment_qualification'],
+    employmentStage: ['employment_stage'],
+    sipStartingContext: ['sip_starting_context'],
+    motivationExpectations: ['motivation_expectations', 'starting_motivation', 'initial_expectations'],
+    cashFlowConflict: ['cash_flow_conflict'],
+    sipBehaviour: ['sip_behaviour', 'sip_behavior'],
+    externalWorkaround: ['external_workaround', 'workaround'],
+    unmetNeed: ['unmet_need'],
+    researchDate: ['research_date', 'interview_date', 'survey_date'],
+    researcherNotes: ['researcher_notes'],
+    quoteConsent: ['quote_consent', 'consent_to_quote'],
+  };
+  for (const [key, aliases] of Object.entries(metadataAliases)) {
+    const value = aliases.map((alias) => row[alias]?.trim()).find(Boolean);
+    if (value) sourceMetadata[key] = value;
+  }
 
   const record: EvidenceRecordInput = {
     sourceUrl: rawUrl!.trim(),
@@ -162,6 +189,7 @@ export function mapCsvRowToRecordInput(row: RawCsvRow, rowNumber: number): {
       originalText: 'user_entered',
       investorContext: rawContext ? 'user_entered' : 'unverified',
       journeyStage: rawJourney !== 'unclear' ? 'user_entered' : 'unverified',
+      ...(Object.keys(sourceMetadata).length ? { sourceMetadata: 'user_entered' as const } : {}),
     },
     entryMethod: 'csv',
     isSynthetic: false,

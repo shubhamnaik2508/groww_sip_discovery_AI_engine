@@ -1,6 +1,24 @@
 import { z } from 'zod';
 import { JourneyStageSchema } from '@/lib/types';
 
+export const ResearchDimensionSchema = z.enum([
+  'sip_starting_motivation',
+  'behavioural_evolution',
+  'pause_reduction_discontinuation',
+  'checking_monitoring',
+  'in_app_confusion_anxiety',
+  'external_workarounds',
+  'continuer_vs_dropoff',
+  'investor_segmentation',
+  'unmet_needs',
+  'insufficient_evidence',
+]);
+
+export const JourneyPeriodSchema = z.enum([
+  'before_start', 'registration', 'first_instalment', 'months_2_3', 'months_4_6', 'months_7_11', 'month_12', 'unspecified',
+]);
+export const CheckingFrequencySchema = z.enum(['multiple_daily', 'daily', 'weekly', 'monthly', 'after_notifications', 'rarely', 'not_specified']);
+
 export const ClaimItemSchema = z.object({
   text: z.string().min(1, 'Claim text cannot be empty'),
   type: z.enum(['observation', 'inference']),
@@ -8,6 +26,42 @@ export const ClaimItemSchema = z.object({
 });
 
 export const StructuredAnalysisOutputSchema = z.object({
+  // Optional to preserve parsing of immutable analyses created by earlier schema versions.
+  researchDimension: ResearchDimensionSchema.optional(),
+  statedMotivation: z.string().nullable().optional(),
+  motivationEvidence: z.string().nullable().optional().describe('Exact quote supporting a stated starting motivation.'),
+  statedExpectation: z.string().nullable().optional(),
+  expectationEvidence: z.string().nullable().optional().describe('Exact quote supporting an expectation held when starting the SIP.'),
+  cashFlowConflict: z.string().nullable().optional(),
+  cashFlowEvidence: z.string().nullable().optional().describe('Exact quote supporting a salary, expense or cash-flow conflict.'),
+  paymentTransactionIssue: z.string().nullable().optional(),
+  paymentIssueEvidence: z.string().nullable().optional().describe('Exact quote supporting a payment, mandate or transaction issue.'),
+  confidenceConcern: z.string().nullable().optional(),
+  confidenceEvidence: z.string().nullable().optional().describe('Exact quote supporting uncertainty or lack of confidence.'),
+  continuationStatusReason: z.string().nullable().optional(),
+  continuationEvidence: z.string().nullable().optional().describe('Exact quote supporting a reported continuation, reduction, pause or stop and its reason.'),
+  triggerOrContext: z.string().nullable().optional(),
+  emotionalSignal: z.string().nullable().optional(),
+  existingWorkaround: z.string().nullable().optional(),
+  workaroundEvidence: z.string().nullable().optional().describe('Exact quote supporting an explicitly stated external workaround.'),
+  potentialUnmetNeed: z.string().nullable().optional(),
+  unmetNeedEvidence: z.string().nullable().optional().describe('Exact quote supporting the stated unmet need.'),
+  relevantTextSpan: z.string().optional(),
+  missingInformation: z.array(z.string()).optional(),
+  explicitlyStatedSegment: z.object({
+    ageBand: z.string().nullable().optional(),
+    incomeStability: z.string().nullable().optional(),
+    investmentSource: z.string().nullable().optional(),
+    startingInfluence: z.string().nullable().optional(),
+    sipStatus: z.enum(['continuer', 'paused', 'reduced', 'cancelled', 'failed_instalment', 'temporarily_inactive', 'unknown']).optional(),
+  }).optional(),
+  segmentEvidence: z.object({
+    ageBand: z.string().nullable().optional(),
+    incomeStability: z.string().nullable().optional(),
+    investmentSource: z.string().nullable().optional(),
+    startingInfluence: z.string().nullable().optional(),
+    sipStatus: z.string().nullable().optional(),
+  }).optional().describe('Verbatim quote supporting each non-null explicitly stated demographic or financial segment value.'),
   theme: z.object({
     name: z.string().min(1, 'Theme name is required'),
     isNewProposal: z.boolean().default(false).describe('True if this feedback does not fit any existing theme'),
@@ -17,6 +71,10 @@ export const StructuredAnalysisOutputSchema = z.object({
   abstainReason: z.string().optional().nullable().describe('Reason for abstention if insufficient evidence or off-topic'),
 
   journeyStage: JourneyStageSchema.describe('Journey stage where this friction or behaviour occurred'),
+  journeyPeriod: JourneyPeriodSchema.optional(),
+  journeyPeriodEvidence: z.string().nullable().optional().describe('Verbatim quote supporting an explicit timing or tenure period.'),
+  checkingFrequency: CheckingFrequencySchema.optional(),
+  checkingFrequencyEvidence: z.string().nullable().optional().describe('Verbatim quote supporting an explicit monitoring frequency.'),
 
   observedBehaviour: z.string().min(3, 'Observed behaviour is required').describe('Specific behaviour explicitly reported in the feedback'),
 
@@ -85,6 +143,54 @@ export function validateOutputGuards(
       errors.push(
         `Guard Violation [Hallucinated Context]: The claimed investor context quote "${output.investorContext.supportingQuote}" cannot be found in the source text.`
       );
+    }
+  }
+
+  if (output.relevantTextSpan) {
+    const normalizedSpan = output.relevantTextSpan.toLowerCase().replace(/\s+/g, ' ');
+    if (!normalizedOriginal.includes(normalizedSpan)) errors.push('Guard Violation [Relevant Span Mismatch]: relevantTextSpan is not a source substring.');
+  }
+  if (output.journeyPeriod && output.journeyPeriod !== 'unspecified') {
+    const periodQuote = output.journeyPeriodEvidence?.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!periodQuote || !normalizedOriginal.includes(periodQuote)) errors.push('Guard Violation [Unsupported Journey Period]: specific journeyPeriod requires an exact source quote.');
+  }
+  if (output.checkingFrequency && output.checkingFrequency !== 'not_specified') {
+    const frequencyQuote = output.checkingFrequencyEvidence?.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!frequencyQuote || !normalizedOriginal.includes(frequencyQuote)) errors.push('Guard Violation [Unsupported Checking Frequency]: a stated frequency requires an exact source quote.');
+  }
+
+  for (const [key, value] of Object.entries(output.explicitlyStatedSegment ?? {})) {
+    if (!value || value === 'unknown') continue;
+    const quote = output.segmentEvidence?.[key as 'ageBand' | 'incomeStability' | 'investmentSource' | 'startingInfluence' | 'sipStatus'];
+    const normalizedQuote = quote?.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!normalizedQuote || !normalizedOriginal.includes(normalizedQuote)) {
+      errors.push(`Guard Violation [Unsupported Segment]: ${key} was populated without a matching verbatim segmentEvidence quote.`);
+    }
+  }
+
+  for (const [index, claim] of output.claims.entries()) {
+    if (claim.type !== 'observation') continue;
+    const excerpt = claim.groundingExcerpt?.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!excerpt || !normalizedOriginal.includes(excerpt)) {
+      errors.push(`Guard Violation [Ungrounded Observation]: observation claim ${index + 1} has no matching source span.`);
+    }
+  }
+
+  const groundedFields: Array<[string, string | null | undefined, string | null | undefined]> = [
+    ['statedMotivation', output.statedMotivation, output.motivationEvidence],
+    ['statedExpectation', output.statedExpectation, output.expectationEvidence],
+    ['cashFlowConflict', output.cashFlowConflict, output.cashFlowEvidence],
+    ['paymentTransactionIssue', output.paymentTransactionIssue, output.paymentIssueEvidence],
+    ['confidenceConcern', output.confidenceConcern, output.confidenceEvidence],
+    ['continuationStatusReason', output.continuationStatusReason, output.continuationEvidence],
+    ['existingWorkaround', output.existingWorkaround, output.workaroundEvidence],
+    ['potentialUnmetNeed', output.potentialUnmetNeed, output.unmetNeedEvidence],
+  ];
+  for (const [field, value, quote] of groundedFields) {
+    if (!value) continue;
+    const normalizedQuote = quote?.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!normalizedQuote || !normalizedOriginal.includes(normalizedQuote)) {
+      errors.push(`Guard Violation [Unsupported ${field}]: a populated ${field} requires a matching verbatim evidence quote.`);
     }
   }
 

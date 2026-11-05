@@ -4,26 +4,44 @@ import {
   themes,
   evidenceThemeLinks,
   recordAnalyses,
+  analysisRuns,
   researchQuestions,
   opportunities,
   opportunityThemes,
   contradictions,
 } from '@/db/schema';
 import { EvidenceGraph, GraphNode, GraphLink } from '@/components/EvidenceGraph';
+import { classifyEvidenceProvenance, isGenuineResearchEvidence, isSyntheticFixture } from '@/lib/evidenceEligibility';
 
 export const dynamic = 'force-dynamic';
 
 export default async function EvidenceGraphPage() {
   await initializeDatabase();
 
-  const allRecords = await db.select().from(evidenceRecords).all();
-  const allThemes = await db.select().from(themes).all();
-  const allLinks = await db.select().from(evidenceThemeLinks).all();
-  const allAnalyses = await db.select().from(recordAnalyses).all();
-  const allQuestions = await db.select().from(researchQuestions).all();
-  const allOpps = await db.select().from(opportunities).all();
-  const allOppThemes = await db.select().from(opportunityThemes).all();
-  const allContradictions = await db.select().from(contradictions).all();
+  const [storedRecords, storedThemes, storedLinks, storedAnalyses, storedQuestions, storedOpps, storedOppThemes, storedContradictions, runs] = await Promise.all([
+    db.select().from(evidenceRecords).all(), db.select().from(themes).all(),
+    db.select().from(evidenceThemeLinks).all(), db.select().from(recordAnalyses).all(),
+    db.select().from(researchQuestions).all(), db.select().from(opportunities).all(),
+    db.select().from(opportunityThemes).all(), db.select().from(contradictions).all(), db.select().from(analysisRuns).all(),
+  ]);
+  const allRecords = storedRecords;
+  const allRecordIds = new Set(allRecords.map((r) => r.id));
+  const runProvider = new Map(runs.map((run) => [run.id, run.provider]));
+  const allLinks = storedLinks.filter((link) => allRecordIds.has(link.evidenceId));
+  const eligibleThemeIds = new Set(allLinks.map((link) => link.themeId));
+  const allThemes = storedThemes.filter((theme) => eligibleThemeIds.has(theme.id));
+  const allAnalyses = storedAnalyses.filter((analysis) => allRecordIds.has(analysis.evidenceId) && analysis.validationStatus === 'valid');
+  const allQuestions = storedQuestions.filter((question) => question.relatedThemeId && eligibleThemeIds.has(question.relatedThemeId));
+  const allOppThemes = storedOppThemes.filter((link) => eligibleThemeIds.has(link.themeId));
+  const eligibleOpportunityIds = new Set(allOppThemes.map((link) => link.opportunityId));
+  const allOpps = storedOpps.filter((opportunity) => eligibleOpportunityIds.has(opportunity.id));
+  const allContradictions = storedContradictions.filter((item) => allRecordIds.has(item.evidenceAId) && allRecordIds.has(item.evidenceBId));
+  const genuineCount = allRecords.filter((record) => isGenuineResearchEvidence(record)).length;
+  const syntheticCount = allRecords.filter(isSyntheticFixture).length;
+  const benchmarkCount = allRecords.filter((record) => classifyEvidenceProvenance(record) === 'curated_benchmark').length;
+  const sourceBreakdown = [...new Set(allRecords.map((record) => record.platform))].map((platform) => ({ platform, count: allRecords.filter((record) => record.platform === platform).length }));
+  const verifiedCount = allRecords.filter((record) => isGenuineResearchEvidence(record) && ['content_verified', 'verified_live', 'verified'].includes(record.verificationStatus)).length;
+  const unverifiedCount = allRecords.filter((record) => !isSyntheticFixture(record) && !record.duplicateOfId && !isGenuineResearchEvidence(record)).length;
 
   const nodes: GraphNode[] = [];
   const links: GraphLink[] = [];
@@ -34,15 +52,15 @@ export default async function EvidenceGraphPage() {
     const platLabel =
       plat === 'play_store'
         ? 'Google Play Store'
-        : plat === 'reddit'
-        ? 'Reddit Community'
-        : plat === 'twitter_x'
-        ? 'Twitter / X'
-        : plat === 'interview'
-        ? 'User Interviews'
-        : plat === 'ticket'
-        ? 'Support Tickets'
-        : 'Desk Research';
+        : plat === 'app_store' ? 'Apple App Store'
+        : plat === 'reddit' ? 'Reddit Community'
+        : plat === 'trading_qa' ? 'TradingQ&A'
+        : plat === 'google_forms' ? 'Google Forms'
+        : plat === 'twitter_x' ? 'Twitter / X'
+        : plat === 'youtube' ? 'YouTube'
+        : plat === 'user_interview' ? 'User Interviews'
+        : plat === 'community_forum' ? 'Community Forum'
+        : plat;
 
     nodes.push({
       id: `source_${plat}`,
@@ -64,6 +82,8 @@ export default async function EvidenceGraphPage() {
         platform: rec.platform,
         journeyStage: rec.journeyStage,
         sourceUrl: rec.sourceUrl,
+        provenance: classifyEvidenceProvenance(rec).replace(/_/g, ' '),
+        analysisProvider: allAnalyses.find((analysis) => analysis.evidenceId === rec.id) ? runProvider.get(allAnalyses.find((analysis) => analysis.evidenceId === rec.id)!.runId) ?? 'unknown' : 'not analysed',
       },
     });
 
@@ -214,18 +234,30 @@ export default async function EvidenceGraphPage() {
       {/* Header */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-          <span className="badge badge-emerald">Knowledge Network</span>
+          <span className="badge badge-emerald">Unified Discovery Graph</span>
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             Bi-Directional Interactive Network Trace
           </span>
         </div>
         <h1>Evidence & Theme Discovery Graph</h1>
         <p style={{ color: 'var(--text-secondary)', maxWidth: '780px', marginTop: '6px', fontSize: '14px' }}>
-          Trace how investor touchpoints and verbatim sentiment cluster into problem themes, generate hypotheses, and spawn research inquiries.
+          {allRecords.length} stored records · {genuineCount} genuine eligible · {syntheticCount} illustrative · {allRecords.length - genuineCount - syntheticCount} other / duplicate. Illustrative and unverified records remain visible, while genuine research conclusions use eligible evidence only.
         </p>
+        <div className="card" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12, padding: 12, fontSize: 11 }}>
+          <strong>Provenance legend:</strong><span className="badge badge-emerald">Genuine eligible {genuineCount}</span><span className="badge badge-amber">Synthetic fixtures {syntheticCount - benchmarkCount}</span><span className="badge badge-amber">Curated benchmark {benchmarkCount}</span><span className="badge badge-neutral">Unverified {unverifiedCount}</span><span className="badge badge-zinc">Content verified {verifiedCount}</span>
+          {sourceBreakdown.map((source) => <span key={source.platform} className="badge badge-neutral">{source.platform}: {source.count}</span>)}
+        </div>
       </div>
 
-      <EvidenceGraph initialNodes={nodes} initialLinks={links} />
+      {allRecords.length === 0 ? (
+        <div className="card" style={{ padding: '28px', borderStyle: 'dashed' }}>
+          <h2 style={{ fontSize: '16px' }}>No eligible research evidence to graph yet</h2>
+          <p style={{ color: 'var(--text-secondary)', marginTop: '8px', fontSize: '13px' }}>
+            Add evidence through the Evidence Explorer to populate this graph.
+          </p>
+        </div>
+      ) : <EvidenceGraph initialNodes={nodes} initialLinks={links} />}
     </div>
   );
 }
+

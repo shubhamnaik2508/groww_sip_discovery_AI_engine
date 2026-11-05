@@ -18,6 +18,20 @@ describe('Evidence Text Hashing and Normalization', () => {
 });
 
 describe('CSV Parsing and Validation', () => {
+  it.each([
+    ['TradingQ&A', 'trading_qa'],
+    ['Google Forms', 'google_forms'],
+  ])('accepts primary research source %s', (platform, expected) => {
+    const row = mapCsvRowToRecordInput({
+      source_url: 'https://example.invalid/research-record',
+      text: 'A participant described their SIP experience in detail.',
+      platform,
+      date: '2026-06-01',
+    }, 2);
+    expect(row.errors).toBeUndefined();
+    expect(row.record?.platform).toBe(expected);
+  });
+
   it('correctly maps valid CSV columns and normalizes headers', () => {
     const csv = `Source URL,Feedback,Platform,Date,Investor Context
 https://play.google.com/store/apps/details?id=com.nextbillion.groww&reviewId=123,"Autopay failed without clear reason",Play Store,2026-05-10,"First-time investor"`;
@@ -33,6 +47,50 @@ https://play.google.com/store/apps/details?id=com.nextbillion.groww&reviewId=123
     expect(record?.originalText).toBe('Autopay failed without clear reason');
     expect(record?.platform).toBe('play_store');
     expect(record?.investorContext).toBe('First-time investor');
+  });
+
+  it('preserves research source metadata without upgrading verification provenance', () => {
+    const { record } = mapCsvRowToRecordInput({
+      source_url: 'https://example.com/review',
+      text: 'I check the SIP status every week.',
+      platform: 'reddit',
+      author_id: 'anon-user-42',
+      published_at: '2026-05-20',
+      language: 'en',
+      evidence_type: 'public discussion',
+    }, 2);
+    expect(record?.sourceMetadata).toMatchObject({ authorId: 'anon-user-42', publishedAt: '2026-05-20', language: 'en', evidenceType: 'public discussion' });
+    expect(record?.fieldProvenance?.sourceUrl).toBe('user_entered');
+    expect(record?.fieldProvenance?.sourceUrl).not.toBe('verified_live');
+  });
+
+  it('imports anonymized primary-research context and consent without marking a public source verified', () => {
+    const { record } = mapCsvRowToRecordInput({
+      source_url: 'https://example.org/research/export-row-07',
+      text: 'I started my first SIP after receiving my first salary.',
+      platform: 'user_interview',
+      participant_id: 'P07',
+      segment_qualification: 'First-paycheck segment self-qualified',
+      employment_stage: 'First year of employment',
+      sip_starting_context: 'Monthly salary income',
+      motivation_expectations: 'Build a long-term savings habit',
+      cash_flow_conflict: 'Unexpected rent expense',
+      sip_behaviour: 'Considered pausing; status unknown',
+      external_workaround: 'Asked a family member',
+      unmet_need: 'Clear SIP flexibility information',
+      interview_date: '2026-06-02',
+      researcher_notes: 'Anonymized note',
+      quote_consent: 'yes',
+    }, 2);
+    expect(record?.sourceMetadata).toMatchObject({
+      participantId: 'P07', segmentQualification: 'First-paycheck segment self-qualified',
+      employmentStage: 'First year of employment', sipStartingContext: 'Monthly salary income',
+      motivationExpectations: 'Build a long-term savings habit', cashFlowConflict: 'Unexpected rent expense',
+      sipBehaviour: 'Considered pausing; status unknown', externalWorkaround: 'Asked a family member',
+      unmetNeed: 'Clear SIP flexibility information', researchDate: '2026-06-02',
+      researcherNotes: 'Anonymized note', quoteConsent: 'yes',
+    });
+    expect(record?.fieldProvenance?.sourceUrl).toBe('user_entered');
   });
 
   it('rejects rows with missing URL or empty feedback text', () => {

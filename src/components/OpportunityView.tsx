@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useTransition, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   recalculateOpportunityAction,
   createOpportunityAction,
+  updateOpportunityHumanScoreAction,
 } from '@/app/actions';
 
 export interface OpportunityItem {
@@ -30,7 +32,32 @@ export interface OpportunityItem {
     platform: string;
     journeyStage: string;
     provenance: Record<string, string>;
+    analysisProvider?: string;
   }>;
+  illustrativeEvidence?: Array<{ id: string; originalText: string; sourceUrl: string; platform: string; verificationStatus: string; isSynthetic: boolean }>;
+  illustrativeEvidenceCount?: number;
+  totalLinkedEvidenceCount?: number;
+  sourceDiversityCount?: number;
+  contradictoryEvidence?: Array<{
+    id: string;
+    title: string;
+    description: string;
+    evidenceA: string;
+    evidenceB: string;
+    sourceA: string;
+    sourceB: string;
+    eligible: boolean;
+  }>;
+  opportunityContext?: {
+    userScenarios: string[];
+    existingWorkarounds: string[];
+    candidateUnmetNeeds: string[];
+    candidateCauseHypotheses: string[];
+    explicitlySupportedSegments: string[];
+    primaryResearchConfirmationCount: number;
+    researchConfidence: string;
+  };
+  scoreAudit?: Array<{ id: string; criterion: string; previousScore: number | null; newScore: number; rationale: string; scoredBy: string; createdAt: string }>;
   scores: Array<{
     id: string;
     criterion: string;
@@ -47,6 +74,10 @@ export interface OpportunityItem {
   }>;
   missingInformation?: string[];
   isThinEvidence: boolean;
+  hasEligibleEvidence?: boolean;
+  eligibleEvidenceCount?: number;
+  excludedFixtureCount?: number;
+  excludedDuplicateCount?: number;
 }
 
 export function OpportunityView({
@@ -57,16 +88,18 @@ export function OpportunityView({
   availableThemes: any[];
 }) {
   const [weights, setWeights] = useState({
-    evidenceStrength: 1,
-    independentRecords: 1,
-    sourceDiversity: 1,
-    userImpact: 1,
-    businessMetricLink: 1,
-    researchUncertainty: 1,
-    potentialFeasibility: 1,
+    evidenceStrength: 5,
+    independentRecords: 3.75,
+    sourceDiversity: 2.5,
+    userImpact: 5,
+    businessMetricLink: 3.75,
+    researchUncertainty: 2.5,
+    potentialFeasibility: 2.5,
   });
 
   const [opportunities, setOpportunities] = useState<OpportunityItem[]>(initialOpportunities);
+  const router = useRouter();
+  const [auditMessage, setAuditMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // Create Opportunity Modal state
@@ -101,7 +134,7 @@ export function OpportunityView({
       .map((opp) => {
         const getScore = (crit: string) => {
           const s = opp.scores.find((x) => x.criterion === crit);
-          return s ? s.normalizedScore : 50;
+          return s ? s.normalizedScore : (opp.hasEligibleEvidence === false ? 0 : 50);
         };
 
         const evScore = getScore('evidence_strength');
@@ -109,10 +142,10 @@ export function OpportunityView({
         const divScore = getScore('source_diversity');
         const impScore = getScore('user_impact');
         const busScore = getScore('business_metric_link');
-        const uncScore = 100 - getScore('research_uncertainty'); // inverted penalty
+        const uncScore = opp.hasEligibleEvidence === false ? 0 : 100 - getScore('research_uncertainty'); // inverted penalty
         const feasScore = getScore('potential_feasibility');
 
-        const composite =
+        const composite = opp.hasEligibleEvidence === false ? 0 :
           totalWeights > 0
             ? (evScore * weights.evidenceStrength +
                 recScore * weights.independentRecords +
@@ -492,7 +525,7 @@ export function OpportunityView({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ fontSize: '16px', fontWeight: 600 }}>
-              Ranked Opportunities ({recalculatedOpportunities.length})
+              Opportunity Candidates ({recalculatedOpportunities.filter((item) => item.hasEligibleEvidence !== false).length} rankable)
             </h3>
             {isPending && (
               <span style={{ fontSize: '12px', color: 'var(--amber-400)' }}>
@@ -521,6 +554,8 @@ export function OpportunityView({
               const metricLink = getScoreItem(opp, 'business_metric_link')?.normalizedScore || 0;
               const certScore = 100 - (getScoreItem(opp, 'research_uncertainty')?.normalizedScore || 0);
               const feas = getScoreItem(opp, 'potential_feasibility')?.normalizedScore || 0;
+              const eligibleRank = opp.hasEligibleEvidence === false ? null : recalculatedOpportunities.slice(0, idx + 1).filter((item) => item.hasEligibleEvidence !== false).length;
+              const isTopRanked = eligibleRank === 1;
 
               return (
                 <div
@@ -531,7 +566,7 @@ export function OpportunityView({
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '18px',
-                    border: idx === 0 ? '1px solid var(--emerald-border)' : '1px solid var(--border-subtle)',
+                    border: isTopRanked ? '1px solid var(--emerald-border)' : '1px solid var(--border-subtle)',
                   }}
                 >
                   {/* Top Bar: Rank & Composite Score */}
@@ -541,14 +576,14 @@ export function OpportunityView({
                         style={{
                           fontSize: '18px',
                           fontWeight: 700,
-                          color: idx === 0 ? 'var(--emerald-400)' : 'var(--text-muted)',
+                          color: isTopRanked ? 'var(--emerald-400)' : 'var(--text-muted)',
                           padding: '4px 10px',
                           borderRadius: 'var(--radius-md)',
                           background: 'var(--bg-surface-raised)',
                           border: '1px solid var(--border-subtle)',
                         }}
                       >
-                        #{idx + 1}
+                        {eligibleRank ? `#${eligibleRank}` : '—'}
                       </span>
 
                       <div>
@@ -563,6 +598,11 @@ export function OpportunityView({
                               title="Less than 3 independent records support this opportunity"
                             >
                               ⚠️ Thin Evidence (&lt; 3 records)
+                            </span>
+                          )}
+                          {opp.hasEligibleEvidence === false && (
+                            <span className="badge badge-amber" style={{ fontSize: '11px' }}>
+                              Not ranked · no genuine eligible evidence{opp.illustrativeEvidenceCount ? ` · ${opp.illustrativeEvidenceCount} illustrative record(s) shown below` : ''}
                             </span>
                           )}
                         </div>
@@ -631,6 +671,53 @@ export function OpportunityView({
                       </p>
                     </div>
                   </div>
+
+                  {opp.opportunityContext && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                      <div className="card" style={{ padding: 12 }}><strong style={{ fontSize: 12 }}>Research context</strong><p style={{ fontSize: 11, marginTop: 5 }}>Confidence: {opp.opportunityContext.researchConfidence} · Primary research records: {opp.opportunityContext.primaryResearchConfirmationCount}</p><p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>Evidence links indicate supporting records; primary research records are not necessarily independent participants unless deduplicated by content.</p></div>
+                      <div className="card" style={{ padding: 12 }}><strong style={{ fontSize: 12 }}>Candidate user scenarios & workarounds</strong>{opp.opportunityContext.userScenarios.slice(0, 3).map((value) => <p key={value} style={{ fontSize: 11, marginTop: 5 }}>{value}</p>)}{opp.opportunityContext.existingWorkarounds.slice(0, 3).map((value) => <p key={value} style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 5 }}>Workaround: {value}</p>)}{opp.opportunityContext.userScenarios.length + opp.opportunityContext.existingWorkarounds.length === 0 && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>No scenario or workaround recorded in eligible analysis.</p>}</div>
+                      <div className="card" style={{ padding: 12 }}><strong style={{ fontSize: 12 }}>Unmet needs & explicit segments</strong>{opp.opportunityContext.candidateUnmetNeeds.slice(0, 3).map((value) => <p key={value} style={{ fontSize: 11, marginTop: 5 }}>Potential user value / need: {value}</p>)}{opp.opportunityContext.explicitlySupportedSegments.slice(0, 5).map((value) => <p key={value} style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 5 }}>{value}</p>)}{opp.opportunityContext.candidateUnmetNeeds.length + opp.opportunityContext.explicitlySupportedSegments.length === 0 && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>No eligible explicit need or segment classification is recorded.</p>}</div>
+                      {opp.opportunityContext.candidateCauseHypotheses.length > 0 && <div className="card" style={{ padding: 12 }}><strong style={{ fontSize: 12 }}>Candidate cause hypotheses · unvalidated</strong>{opp.opportunityContext.candidateCauseHypotheses.slice(0, 3).map((value) => <p key={value} style={{ fontSize: 11, marginTop: 5 }}>{value}</p>)}</div>}
+                    </div>
+                  )}
+
+                  <details style={{ border: '1px solid var(--border-subtle)', borderRadius: 10, padding: 12 }}>
+                    <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Human score override & audit history</summary>
+                    <form onSubmit={async (event) => {
+                      event.preventDefault();
+                      const values = new FormData(event.currentTarget);
+                      const criterion = String(values.get('criterion')) as 'user_impact' | 'business_metric_link' | 'research_uncertainty' | 'potential_feasibility';
+                      const score = Number(values.get('score'));
+                      const rationale = String(values.get('rationale') || '');
+                      const scoredBy = String(values.get('scoredBy') || '');
+                      const result = await updateOpportunityHumanScoreAction({
+                        opportunityId: opp.id,
+                        criterion,
+                        score,
+                        rationale,
+                        scoredBy,
+                      });
+                      setAuditMessage(result.success ? 'Override saved with an audit entry.' : result.error || 'Could not save the override.');
+                      if (result.success && result.result) {
+                        setOpportunities((current) => current.map((item) => item.id !== opp.id ? item : {
+                          ...item,
+                          scores: item.scores.some((scoreItem) => scoreItem.criterion === criterion)
+                            ? item.scores.map((scoreItem) => scoreItem.criterion === criterion ? { ...scoreItem, rawScore: score, normalizedScore: score * 20, basis: 'human_judgement', rationale } : scoreItem)
+                            : [...item.scores, { id: result.result.auditId, criterion, rawScore: score, normalizedScore: score * 20, basis: 'human_judgement', rationale }],
+                          scoreAudit: [{ id: result.result.auditId, criterion, previousScore: result.result.previousScore, newScore: score, rationale, scoredBy, createdAt: new Date().toISOString() }, ...(item.scoreAudit || [])],
+                        }));
+                        router.refresh();
+                      }
+                    }} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, marginTop: 10 }}>
+                      <select name="criterion" aria-label="Score criterion" defaultValue="user_impact"><option value="user_impact">User pain severity</option><option value="business_metric_link">Retention metric connection</option><option value="research_uncertainty">Research confidence / uncertainty</option><option value="potential_feasibility">Implementation feasibility</option></select>
+                      <input name="score" aria-label="Score from zero to five" type="number" min="0" max="5" step="0.1" required placeholder="Score 0–5" />
+                      <input name="scoredBy" aria-label="Reviewer" required placeholder="Reviewer name" />
+                      <input name="rationale" aria-label="Override rationale" required placeholder="Why this score changed" />
+                      <button className="btn btn-secondary" type="submit">Save audited override</button>
+                    </form>
+                    {auditMessage && <p role="status" style={{ fontSize: 11, marginTop: 6 }}>{auditMessage}</p>}
+                    {(opp.scoreAudit || []).length > 0 && <div style={{ marginTop: 10 }}><strong style={{ fontSize: 11 }}>Previous score decisions</strong>{opp.scoreAudit!.slice(0, 5).map((entry) => <p key={entry.id} style={{ fontSize: 11, marginTop: 5 }}>{entry.criterion.replace(/_/g, ' ')}: {entry.previousScore ?? 'unset'} → {entry.newScore}/5 by {entry.scoredBy} · {entry.rationale} <span style={{ color: 'var(--text-muted)' }}>{entry.createdAt}</span></p>)}</div>}
+                  </details>
 
                   {/* 7 Component Breakdown Bars */}
                   <div>
@@ -732,6 +819,9 @@ export function OpportunityView({
                         ▸ View Full 7-Criteria Scoring Matrix &amp; Rationale ({opp.scores.length} Factors)
                       </summary>
                       <div style={{ marginTop: '12px', overflowX: 'auto' }}>
+                        {opp.hasEligibleEvidence === false ? (
+                          <p style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Stored scores are suppressed because this opportunity has no eligible evidence. Add genuine, non-duplicate evidence and rescore.</p>
+                        ) : (
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
                           <thead>
                             <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-muted)' }}>
@@ -766,6 +856,7 @@ export function OpportunityView({
                             ))}
                           </tbody>
                         </table>
+                        )}
                       </div>
                     </details>
                   </div>
@@ -804,6 +895,15 @@ export function OpportunityView({
                     </div>
                   )}
 
+                  <div className="card" style={{ padding: 12, marginTop: 8 }}>
+                    <strong style={{ fontSize: 12 }}>Unified evidence basis</strong>
+                    <p style={{ fontSize: 11, marginTop: 5 }}>{opp.totalLinkedEvidenceCount ?? 0} linked records · {opp.eligibleEvidenceCount ?? 0} genuine eligible · {opp.illustrativeEvidenceCount ?? 0} illustrative · {opp.sourceDiversityCount ?? 0} source types · {opp.opportunityContext?.researchConfidence ?? 'Insufficient evidence'}</p>
+                    {!opp.hasEligibleEvidence && <p className="badge badge-amber" style={{ marginTop: 6 }}>Illustrative opportunity only · not genuine research-backed</p>}
+                  </div>
+                  {opp.illustrativeEvidence && opp.illustrativeEvidence.length > 0 && <details style={{ background: 'var(--bg-canvas)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', padding: '10px 14px', marginTop: 8 }}>
+                    <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--amber-400)' }}>Illustrative linked records ({opp.illustrativeEvidence.length})</summary>
+                    {opp.illustrativeEvidence.map((ev) => <article key={ev.id} style={{ marginTop: 9, borderTop: '1px solid var(--border-subtle)', paddingTop: 8, fontSize: 12 }}><span className="badge badge-amber">Illustrative fixture</span><span style={{ marginLeft: 6 }}>{ev.platform}</span><p style={{ marginTop: 5 }}>“{ev.originalText}”</p><a href={ev.sourceUrl} target="_blank" rel="noreferrer">Fixture reference ↗</a></article>)}
+                  </details>}
                   {/* Supporting Evidence Lineage */}
                   {opp.linkedEvidence && opp.linkedEvidence.length > 0 && (
                     <div style={{ marginTop: '4px' }}>
@@ -831,6 +931,7 @@ export function OpportunityView({
                                   <span className="badge badge-purple" style={{ fontSize: '10px' }}>
                                     {ev.journeyStage.replace(/_/g, ' ')}
                                   </span>
+                                  {ev.analysisProvider && <span className={`badge ${ev.analysisProvider === 'fake' ? 'badge-amber' : 'badge-neutral'}`} style={{ fontSize: 10 }}>Analysis: {ev.analysisProvider === 'fake' ? 'simulated' : ev.analysisProvider}</span>}
                                   <span
                                     className={`badge ${ev.provenance?.sourceUrl === 'curated_benchmark' ? 'badge-amber' : ev.provenance?.sourceUrl === 'verified_live' ? 'badge-emerald' : 'badge-zinc'}`}
                                     style={{ fontSize: '10px' }}
@@ -860,6 +961,14 @@ export function OpportunityView({
                         </div>
                       </details>
                     </div>
+                  )}
+
+                  {opp.contradictoryEvidence && opp.contradictoryEvidence.length > 0 && (
+                    <details style={{ background: 'var(--bg-canvas)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', padding: '10px 14px' }}>
+                      <summary style={{ cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: 'var(--amber-400)' }}>Contradictory evidence ({opp.contradictoryEvidence.filter((item) => item.eligible).length} eligible · {opp.contradictoryEvidence.filter((item) => !item.eligible).length} excluded)</summary>
+                      {opp.contradictoryEvidence.filter((item) => item.eligible).map((item) => <article key={item.id} style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 10, marginTop: 10 }}><strong style={{ fontSize: 12 }}>{item.title}</strong><p style={{ fontSize: 12, marginTop: 4 }}>{item.description}</p><p style={{ fontSize: 11, marginTop: 5 }}>A: “{item.evidenceA}” · <a href={item.sourceA} target="_blank" rel="noreferrer">source ↗</a></p><p style={{ fontSize: 11, marginTop: 3 }}>B: “{item.evidenceB}” · <a href={item.sourceB} target="_blank" rel="noreferrer">source ↗</a></p></article>)}
+                      {opp.contradictoryEvidence.every((item) => !item.eligible) && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>No eligible evidence pair is available to substantiate the saved contradiction.</p>}
+                    </details>
                   )}
 
                   {/* Methodological Caveats & Missing Information */}

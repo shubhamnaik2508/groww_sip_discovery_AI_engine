@@ -4,6 +4,7 @@ import { eq, desc, sql, and, like, or } from 'drizzle-orm';
 import { computeContentHash } from '@/lib/hashing';
 import { parseCsvContent, mapCsvRowToRecordInput, sanitizeForCsvExport } from '@/lib/csv';
 import { EvidenceRecordInput, IngestBatchResult, IngestRowError, FieldProvenanceMap } from '@/lib/types';
+import { deduplicateEligibleEvidence, deduplicateNonFixtureRecords, isEligibleNonFixtureEvidence, isSyntheticFixture } from '@/lib/evidenceEligibility';
 import crypto from 'crypto';
 
 export class EvidenceService {
@@ -49,20 +50,22 @@ export class EvidenceService {
       const contentHash = computeContentHash(input.originalText);
 
       // Check if duplicate exists in database
-      const existing = await db
+      const sameHashRecords = await db
         .select()
         .from(evidenceRecords)
         .where(eq(evidenceRecords.contentHash, contentHash))
-        .limit(1);
+        .all();
+      const existing = sameHashRecords.find(isEligibleNonFixtureEvidence);
 
       const recordId = crypto.randomUUID();
-      const isDuplicate = existing.length > 0;
-      const duplicateOfId = isDuplicate ? existing[0].id : null;
+      const isDuplicate = Boolean(existing);
+      const duplicateOfId = existing?.id || null;
 
       if (isDuplicate) {
         duplicateRows++;
       }
 
+      const isFixture = isSyntheticFixture(input);
       await db.insert(evidenceRecords).values({
         id: recordId,
         sourceUrl: input.sourceUrl,
@@ -83,8 +86,8 @@ export class EvidenceService {
         entryMethod: 'csv',
         importBatchId: batchId,
         duplicateOfId,
-        isSynthetic: Boolean(input.isSynthetic),
-        verificationStatus: Boolean(input.isSynthetic) ? 'synthetic_fixture' : 'user_entered',
+        isSynthetic: isFixture,
+        verificationStatus: isFixture ? 'synthetic_fixture' : 'user_entered',
         verifiedAt: null,
         verifiedBy: null,
       });
@@ -127,14 +130,15 @@ export class EvidenceService {
     await initializeDatabase();
     const contentHash = computeContentHash(input.originalText);
 
-    const existing = await db
+    const sameHashRecords = await db
       .select()
       .from(evidenceRecords)
       .where(eq(evidenceRecords.contentHash, contentHash))
-      .limit(1);
+      .all();
+    const existing = sameHashRecords.find(isEligibleNonFixtureEvidence);
 
-    const isDuplicate = existing.length > 0;
-    const duplicateOfId = isDuplicate ? existing[0].id : null;
+    const isDuplicate = Boolean(existing);
+    const duplicateOfId = existing?.id || null;
     const recordId = crypto.randomUUID();
 
     const defaultProvenance: FieldProvenanceMap = {
@@ -146,8 +150,9 @@ export class EvidenceService {
       journeyStage: input.journeyStage !== 'unclear' ? 'user_entered' : 'unverified',
     };
 
+    const isFixture = isSyntheticFixture({ ...input, entryMethod: input.entryMethod || 'manual' });
     let verificationStatus: 'content_verified' | 'link_checked' | 'user_entered' | 'unverified' | 'synthetic_fixture' = 'user_entered';
-    if (input.isSynthetic || input.verificationStatus === 'synthetic_fixture') {
+    if (isFixture) {
       verificationStatus = 'synthetic_fixture';
     } else if (input.verificationStatus) {
       verificationStatus = input.verificationStatus;
@@ -166,7 +171,7 @@ export class EvidenceService {
       fieldProvenance: JSON.stringify(input.fieldProvenance || defaultProvenance),
       entryMethod: input.entryMethod || 'manual',
       duplicateOfId,
-      isSynthetic: Boolean(input.isSynthetic || verificationStatus === 'synthetic_fixture'),
+      isSynthetic: isFixture,
       verificationStatus,
       verifiedAt: input.verifiedAt || null,
       verifiedBy: input.verifiedBy || null,
@@ -191,6 +196,9 @@ export class EvidenceService {
     }
 
     const current = records[0];
+    if (isSyntheticFixture(current)) {
+      throw new Error('Synthetic or curated benchmark fixtures cannot be verified as genuine investor evidence.');
+    }
     const timestamp = new Date().toISOString();
 
     await db.insert(evidenceEdits).values({
@@ -321,14 +329,6 @@ export class EvidenceService {
     if (filters?.journeyStage && filters.journeyStage !== 'all') {
       conditions.push(eq(evidenceRecords.journeyStage, filters.journeyStage));
     }
-    if (filters?.hideDuplicates) {
-      conditions.push(sql`${evidenceRecords.duplicateOfId} IS NULL`);
-    }
-    if (filters?.onlySynthetic) {
-      conditions.push(eq(evidenceRecords.isSynthetic, true));
-    } else if (filters?.excludeSynthetic) {
-      conditions.push(eq(evidenceRecords.isSynthetic, false));
-    }
     if (filters?.search && filters.search.trim()) {
       const q = `%${filters.search.trim().toLowerCase()}%`;
       conditions.push(
@@ -346,12 +346,24 @@ export class EvidenceService {
       .select()
       .from(evidenceRecords)
       .where(whereClause)
-      .orderBy(desc(evidenceRecords.createdAt))
-      .limit(filters?.limit ?? 200)
-      .offset(filters?.offset ?? 0);
+      .orderBy(desc(evidenceRecords.createdAt));
+
+    const classifiedRecords = records.filter((record) => {
+      const isFixture = isSyntheticFixture(record);
+      if (filters?.onlySynthetic && !isFixture) return false;
+      if (filters?.excludeSynthetic && isFixture) return false;
+      return true;
+    });
+    const seenHashes = new Set<string>();
+    const eligiblePage = classifiedRecords.filter((record) => {
+      if (!filters?.hideDuplicates) return true;
+      if (record.duplicateOfId || seenHashes.has(record.contentHash)) return false;
+      seenHashes.add(record.contentHash);
+      return true;
+    }).slice(filters?.offset ?? 0, (filters?.offset ?? 0) + (filters?.limit ?? 200));
 
     // Fetch the latest analysis and review for each record
-    const recordIds = records.map((r) => r.id);
+    const recordIds = eligiblePage.map((r) => r.id);
     if (recordIds.length === 0) return [];
 
     const analyses = await db
@@ -366,11 +378,12 @@ export class EvidenceService {
       .where(sql`${reviews.evidenceId} IN (${sql.join(recordIds.map((id) => sql`${id}`), sql`, `)})`)
       .orderBy(desc(reviews.createdAt));
 
-    return records.map((record) => {
+    return eligiblePage.map((record) => {
       const latestAnalysis = analyses.find((a) => a.evidenceId === record.id);
       const latestReview = allReviews.find((r) => r.evidenceId === record.id);
       return {
         ...record,
+        isSynthetic: isSyntheticFixture(record),
         fieldProvenance: JSON.parse(record.fieldProvenance || '{}'),
         sourceMetadata: record.sourceMetadata ? JSON.parse(record.sourceMetadata) : null,
         latestAnalysis: latestAnalysis
@@ -453,9 +466,15 @@ export class EvidenceService {
       'source_url',
       'platform',
       'collected_at',
+      'entry_method',
       'verification_status',
       'verified_at',
       'verified_by',
+      'author_id',
+      'published_at',
+      'language',
+      'evidence_type',
+      'primary_research_metadata',
       'journey_stage',
       'investor_context',
       'original_text',
@@ -471,15 +490,25 @@ export class EvidenceService {
     const rows = records.map((r) => {
       const parsedAi = r.latestAnalysis?.parsedOutput;
       const parsedReview = r.latestReview?.revisedOutput;
+      let sourceMetadata: Record<string, unknown> = {};
+      try {
+        sourceMetadata = typeof r.sourceMetadata === 'string' ? JSON.parse(r.sourceMetadata) : (r.sourceMetadata || {});
+      } catch { sourceMetadata = {}; }
 
       return [
         sanitizeForCsvExport(r.id),
-        sanitizeForCsvExport(r.sourceUrl),
+        sanitizeForCsvExport(r.isSynthetic ? '' : r.sourceUrl),
         sanitizeForCsvExport(r.platform),
         sanitizeForCsvExport(r.collectedAt),
-        sanitizeForCsvExport(r.verificationStatus || 'unverified'),
+        sanitizeForCsvExport(r.entryMethod),
+        sanitizeForCsvExport(r.isSynthetic ? 'synthetic_fixture' : (r.verificationStatus || 'unverified')),
         sanitizeForCsvExport(r.verifiedAt || ''),
         sanitizeForCsvExport(r.verifiedBy || ''),
+        sanitizeForCsvExport(sourceMetadata.authorId || sourceMetadata.author || ''),
+        sanitizeForCsvExport(sourceMetadata.publishedAt || sourceMetadata.datePosted || ''),
+        sanitizeForCsvExport(sourceMetadata.language || ''),
+        sanitizeForCsvExport(sourceMetadata.evidenceType || ''),
+        sanitizeForCsvExport(JSON.stringify(Object.fromEntries(Object.entries(sourceMetadata).filter(([key]) => ['participantId', 'segmentQualification', 'employmentStage', 'sipStartingContext', 'motivationExpectations', 'cashFlowConflict', 'sipBehaviour', 'externalWorkaround', 'unmetNeed', 'researchDate', 'researcherNotes', 'quoteConsent'].includes(key))))),
         sanitizeForCsvExport(r.journeyStage),
         sanitizeForCsvExport(r.investorContext || ''),
         sanitizeForCsvExport(r.originalText),
@@ -512,12 +541,16 @@ export class EvidenceService {
     let curatedBenchmark = 0;
     let userEntered = 0;
     let unverified = 0;
+    const eligibleRecords = deduplicateEligibleEvidence(records);
+    const eligibleNonFixture = eligibleRecords.length;
+    const nonFixtureRecords = records.filter((record) => !isSyntheticFixture(record));
+    const duplicateCount = nonFixtureRecords.length - deduplicateNonFixtureRecords(nonFixtureRecords).length;
 
     for (const r of records) {
       const vStatus = r.verificationStatus;
-      const isSynth = Boolean(r.isSynthetic);
+      const isSynth = isSyntheticFixture(r);
 
-      if (isSynth || vStatus === 'synthetic_fixture') {
+      if (isSynth) {
         curatedBenchmark++;
       } else if (vStatus === 'content_verified') {
         contentVerified++;
@@ -548,6 +581,8 @@ export class EvidenceService {
 
     return {
       total: records.length,
+      eligibleNonFixture,
+      duplicateCount,
       contentVerified,
       linkChecked,
       verifiedLive,
@@ -555,7 +590,8 @@ export class EvidenceService {
       userEntered,
       unverified,
       syntheticFixture: curatedBenchmark,
-      isBenchmarkCohort: curatedBenchmark > 0 && verifiedLive === 0 && userEntered === 0,
+      isBenchmarkCohort: curatedBenchmark > 0 && eligibleNonFixture === 0,
     };
   }
 }
+

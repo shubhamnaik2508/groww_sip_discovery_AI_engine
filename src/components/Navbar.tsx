@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 const NAV_ITEMS = [
   { href: '/', label: 'Overview', icon: '📊' },
   { href: '/evidence', label: 'Evidence Explorer', icon: '📑' },
+  { href: '/intelligence', label: 'Investor Intelligence', icon: '🧭' },
   { href: '/themes', label: 'Theme & Behaviour Map', icon: '🗺️' },
   { href: '/opportunities', label: 'Opportunity Explorer', icon: '🎯' },
   { href: '/graph', label: 'Evidence Graph', icon: '🕸️' },

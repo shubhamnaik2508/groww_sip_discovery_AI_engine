@@ -47,6 +47,27 @@ export async function addManualEvidenceAction(formData: FormData) {
     const investorContext = (formData.get('investorContext') as string)?.trim() || null;
     const journeyStage = (formData.get('journeyStage') as string)?.trim() as any || 'unclear';
     const enteredBy = (formData.get('enteredBy') as string)?.trim() || 'Researcher';
+    const sourceMetadata: Record<string, string | boolean | undefined> = {
+      authorId: (formData.get('authorId') as string)?.trim() || undefined,
+      publishedAt: (formData.get('publishedAt') as string)?.trim() || undefined,
+      language: (formData.get('language') as string)?.trim() || undefined,
+      evidenceType: (formData.get('evidenceType') as string)?.trim() || undefined,
+      participantId: (formData.get('participantId') as string)?.trim() || undefined,
+      segmentQualification: (formData.get('segmentQualification') as string)?.trim() || undefined,
+      employmentStage: (formData.get('employmentStage') as string)?.trim() || undefined,
+      sipStartingContext: (formData.get('sipStartingContext') as string)?.trim() || undefined,
+      motivationExpectations: (formData.get('motivationExpectations') as string)?.trim() || undefined,
+      cashFlowConflict: (formData.get('cashFlowConflict') as string)?.trim() || undefined,
+      sipBehaviour: (formData.get('sipBehaviour') as string)?.trim() || undefined,
+      externalWorkaround: (formData.get('externalWorkaround') as string)?.trim() || undefined,
+      unmetNeed: (formData.get('unmetNeed') as string)?.trim() || undefined,
+      researchDate: (formData.get('researchDate') as string)?.trim() || undefined,
+      researcherNotes: (formData.get('researcherNotes') as string)?.trim() || undefined,
+      quoteConsent: formData.get('quoteConsent') === 'yes',
+    };
+    Object.keys(sourceMetadata).forEach((key) => {
+      if (!sourceMetadata[key as keyof typeof sourceMetadata]) delete sourceMetadata[key as keyof typeof sourceMetadata];
+    });
 
     if (!sourceUrl || !originalText) {
       return { success: false, error: 'Source URL and feedback text are required.' };
@@ -59,6 +80,7 @@ export async function addManualEvidenceAction(formData: FormData) {
         collectedAt,
         originalText,
         investorContext,
+        sourceMetadata: Object.keys(sourceMetadata).length ? sourceMetadata as Record<string, string | boolean> : null,
         journeyStage,
         fieldProvenance: {
           sourceUrl: 'user_entered',
@@ -67,6 +89,7 @@ export async function addManualEvidenceAction(formData: FormData) {
           originalText: 'user_entered',
           investorContext: investorContext ? 'user_entered' : 'unverified',
           journeyStage: journeyStage !== 'unclear' ? 'user_entered' : 'unverified',
+          ...(Object.keys(sourceMetadata).length ? { sourceMetadata: 'user_entered' as const } : {}),
         },
         entryMethod: 'manual',
         isSynthetic: false,
@@ -105,11 +128,15 @@ export async function runBatchAnalysisAction(options?: {
   providerName?: string;
   recordIds?: string[];
   maxRecords?: number;
+  skipAlreadyAnalyzed?: boolean;
 }) {
   try {
     const summary = await AnalysisOrchestrator.executeRun(options);
     revalidatePath('/evidence');
     revalidatePath('/themes');
+    revalidatePath('/intelligence');
+    revalidatePath('/graph');
+    revalidatePath('/opportunities');
     revalidatePath('/');
     return { success: true, summary };
   } catch (err: any) {
@@ -175,10 +202,24 @@ export async function createOpportunityAction(input: any) {
   }
 }
 
-/**
- * Seeds a high-fidelity realistic benchmark dataset of 20 Groww SIP discovery records
- * with authentic feedback excerpts, verified URLs, golden labels, and 3 genuine failure cases.
- */
+export async function updateOpportunityHumanScoreAction(input: {
+  opportunityId: string;
+  criterion: 'user_impact' | 'business_metric_link' | 'research_uncertainty' | 'potential_feasibility';
+  score: number;
+  rationale: string;
+  scoredBy: string;
+}) {
+  try {
+    const result = await OpportunityService.updateHumanScore(input);
+    revalidatePath('/opportunities');
+    revalidatePath('/export');
+    return { success: true, result };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to save score override.' };
+  }
+}
+
+/** Adds synthetic development fixtures and simulated labels. Never counts as investor evidence. */
 export async function seedBenchmarkDatasetAction() {
   const { seedBenchmarkData } = await import('@/db/seed');
   const result = await seedBenchmarkData();

@@ -13,6 +13,8 @@ export function ExportView({
   jsonData: any;
   summary: {
     totalRecords: number;
+    storedRecords: number;
+    syntheticRecords: number;
     totalThemes: number;
     totalOpportunities: number;
     evaluationAccuracy: number | null;
@@ -108,11 +110,11 @@ export function ExportView({
         }}
       >
         <div className="card" style={{ padding: '16px 20px' }}>
-          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Evidence Ingested</span>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Eligible Evidence</span>
           <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
             {summary.totalRecords}
           </div>
-          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Verbatim investor records</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{summary.storedRecords} stored · {summary.syntheticRecords} fixtures excluded</span>
         </div>
 
         <div className="card" style={{ padding: '16px 20px' }}>

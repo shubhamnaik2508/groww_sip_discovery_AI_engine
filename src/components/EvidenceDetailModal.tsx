@@ -118,7 +118,6 @@ export function EvidenceDetailModal({
   const handleTriggerAnalysis = () => {
     startTransition(async () => {
       const res = await runBatchAnalysisAction({
-        providerName: 'fake', // or configured provider
         recordIds: [record.id],
       });
       if (res.success) {
@@ -246,14 +245,14 @@ export function EvidenceDetailModal({
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', background: 'var(--bg-canvas)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
               <div>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Source Provenance &amp; Verification</div>
-                <a
+                {record.isSynthetic ? <span className="badge badge-amber" style={{ fontSize: '11px' }}>Synthetic fixture · no research source; never verified</span> : <a
                   href={record.sourceUrl}
                   target="_blank"
                   rel="noreferrer"
                   style={{ fontSize: '12px', color: 'var(--blue-400)', textDecoration: 'underline', wordBreak: 'break-all' }}
                 >
                   {record.sourceUrl} ↗
-                </a>
+                </a>}
                 <div style={{ marginTop: '4px' }}>
                   {verificationStatus === 'content_verified' ? (
                     <span className="badge badge-emerald" style={{ fontSize: '10px' }}>
@@ -283,7 +282,11 @@ export function EvidenceDetailModal({
                   </div>
                 )}
                 {/* Audit Controls */}
-                <div style={{ marginTop: '8px', display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                {record.isSynthetic ? (
+                  <p style={{ fontSize: '10px', color: 'var(--amber-400)', marginTop: '8px' }}>
+                    Fixture provenance cannot be changed to genuine verification.
+                  </p>
+                ) : <div style={{ marginTop: '8px', display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                   <button
                     type="button"
                     className="btn btn-secondary"
@@ -311,7 +314,7 @@ export function EvidenceDetailModal({
                   >
                     Unverify
                   </button>
-                </div>
+                </div>}
               </div>
 
               <div>
@@ -339,6 +342,7 @@ export function EvidenceDetailModal({
                 <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
                   AI Discovery Classification
                 </span>
+                {record.latestAnalysis?.provider && <span className={`badge ${record.latestAnalysis.provider === 'fake' ? 'badge-amber' : 'badge-neutral'}`} title="Analysis provider and model version are recorded in the analysis run.">{record.latestAnalysis.provider === 'fake' ? 'Simulated analysis' : `${record.latestAnalysis.provider} · ${record.latestAnalysis.model || 'model unknown'}`}</span>}
                 {!parsedAi && (
                   <button onClick={handleTriggerAnalysis} disabled={isPending} className="btn btn-primary" style={{ fontSize: '12px', padding: '4px 10px' }}>
                     {isPending ? 'Analyzing...' : '⚡ Run AI Analysis'}

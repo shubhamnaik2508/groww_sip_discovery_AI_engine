@@ -1,26 +1,28 @@
 # Groww SIP Discovery AI Engine 🚀
 
-An AI-powered Natural Language Discovery Engine that analyzes public investor feedback to uncover the root causes of first-time mutual fund investor attrition 12 months after SIP initiation on Groww.
+An independent academic research prototype for organizing investor feedback, testing AI-assisted classifications and exploring product opportunities related to SIP continuity. Public feedback does not establish population-level churn or root causes.
 
-Built on an **evidence-first problem space formulation** framework, this engine ingests unfiltered customer reviews, maps investor friction across journey stages, verifies AI classifications via Human-in-the-Loop (HITL) workflows, models causal dynamics via interactive force-directed graphs, and prioritizes high-leverage product interventions.
+Built on an **evidence-first problem space formulation** framework, the app stores public and manually supplied records, preserves provenance, excludes synthetic fixtures from empirical metrics, supports human review, and surfaces evidence-linked hypotheses. It is not affiliated with Groww and does not provide investment advice.
 
 ---
 
 ## 🎯 Primary Business Objective
-> **Fellowship Metric:** Increase the percentage of first-time mutual fund investors who maintain an **Active SIP** (≥1 successful instalment in the past 30 days) at month 12 after inception.
+> **Research target:** Percentage of eligible first-time mutual fund investors who still have at least one active SIP 12 months after starting their first SIP. Active means at least one successful instalment in the prior 30 days. This prototype does not have cohort transaction data to calculate the retention rate.
 
 ---
 
 ## ✨ Key Features
 
-- **Multi-Source Evidence Ingestion & Provenance:**
-  - Ingests and parses real feedback from Google Play Store, Apple App Store, Reddit (`r/IndiaInvestments`), X/Twitter, and SEBI SCORES complaints.
+- **Evidence Ingestion & Provenance:**
+  - Manually enter or import evidence records attributed to Google Play, Apple App Store, Reddit, TradingQ&A, Google Forms, YouTube, X/Twitter, interviews, and other sources. The application does not automatically collect from those platforms.
   - Computes cryptographic SHA-256 content hashes to prevent duplicates.
-  - Distinguishes between real investor feedback and verified synthetic benchmark data.
+  - Tracks user-entered, verified, unverified, duplicate, and synthetic-fixture provenance separately. Supplied URLs are not automatically verified.
 
-- **AI Extraction Engine (Gemini 2.5 Flash + Deterministic Fallback):**
+- **AI Extraction Engine (Gemini):**
   - Classifies evidence into granular **Journey Stages** (*Discovery & Intent*, *Mandate & KYC Setup*, *First Instalment Allotment*, *Market Dip Reaction*, *Autopay Failure & Recovery*, *Continuation Milestone*, *Pause & Cancellation*).
   - Extracts emotional valence, operational failure mechanisms, friction themes, and user quote verification.
+  - Requires source quotes for explicit timing, checking frequency, demographic and financial segment fields. A failed instalment is not automatically classified as churn.
+  - The deterministic fake provider is for simulated tests only and is excluded from empirical intelligence summaries.
 
 - **Human-in-the-Loop (HITL) Validation & Reliability:**
   - Review interface for product managers and analysts to **Confirm**, **Correct**, or **Reject** AI classifications.
@@ -29,10 +31,24 @@ Built on an **evidence-first problem space formulation** framework, this engine 
 - **Interactive Causal Force-Directed Graph:**
   - D3-powered force graph modeling relationships between Journey Stages, Friction Themes, Root Failure Mechanisms, and the 12-Month Active SIP metric.
   - Interactive stage filters, drag-and-drop nodes, and live inspection drawer.
+  - Unified discovery views show all stored records, analyses, themes, graphs and opportunities together. Provenance labels distinguish genuine, unverified, curated benchmark, synthetic, primary research and duplicate records; illustrative outputs never count as genuine findings.
 
-- **Opportunity Scoring & PRD Export:**
-  - ICE (Impact, Confidence, Ease) prioritization matrix for candidate solutions.
-  - Auto-generates structured, evidence-backed Product Requirement Documents (PRDs) with direct investor quote citations.
+- **Opportunity Scoring & Evidence Log:**
+  - Seven-criterion weighted prioritization with evidence counts, source diversity, confidence limits and human score override audit history.
+  - Exports Markdown, CSV and JSON evidence logs with source inventory, AI evaluation diagnostics, failures, opportunities and provenance.
+
+- **Investor Intelligence:**
+  - Summarizes coverage across nine research dimensions, explicit journey windows, checking frequencies, segments, unmet needs, behavioural chains and recorded contradictions.
+  - Provides source links and marks unknowns, simulated analysis and coverage gaps.
+  - Adds an independent NextLeap nine-question audit; question counts require a valid non-simulated analysis and exact supporting text from the eligible source.
+
+- **Standalone AI Evidence Log:**
+  - `/evidence-log` provides a print-ready document with source inventory, eligible labelled examples, evaluation status, genuine corrections and limitations.
+  - Use the browser print dialog to save a local PDF. The app does not publish the document or create public sharing permissions.
+
+- **Research eligibility:**
+  - Public-source evidence must be content-verified before it contributes to genuine research metrics. Link checking alone does not authenticate the quoted content.
+  - Researcher-supplied Google Forms and interview records retain their separate user-entered provenance. Primary-research excerpts are withheld from the shareable Evidence Log pending documented consent.
 
 ---
 
@@ -41,7 +57,7 @@ Built on an **evidence-first problem space formulation** framework, this engine 
 - **Framework:** Next.js 16 (Turbopack, App Router, React 19)
 - **Language:** TypeScript
 - **Database:** SQLite / LibSQL with [Drizzle ORM](https://orm.drizzle.team)
-- **AI / LLM:** Google Gen AI SDK (`@google/genai` / Gemini 2.5 Flash)
+- **AI / LLM:** Google Gen AI SDK (`@google/genai` / model configurable with `GEMINI_MODEL`)
 - **Visualizations:** D3 Force (`d3-force`)
 - **Testing:** Vitest
 - **Styling:** Custom modern dark-mode fintech design system
@@ -51,7 +67,7 @@ Built on an **evidence-first problem space formulation** framework, this engine 
 ## 🚀 Getting Started
 
 ### 1. Prerequisites
-- Node.js 18+ or 20+
+- Node.js 20.9 or later
 - npm, pnpm, or yarn
 
 ### 2. Installation
@@ -64,25 +80,27 @@ cd groww_sip_discovery_AI_engine
 npm install
 ```
 
-### 3. Environment Variables (Optional)
+### 3. Environment Variables
 Create a `.env.local` file in the root directory:
 ```env
-# Gemini API Key (optional - system uses deterministic offline fallback if not provided)
+# Gemini API Key for live analysis
 GEMINI_API_KEY=your_gemini_api_key_here
+# Optional aliases/configuration
+# GOOGLE_API_KEY=your_gemini_api_key_here
+# GEMINI_MODEL=gemini-3.8-flash
+# AI_PROVIDER=gemini
+# DATABASE_URL=file:groww_sip_lab.db
 ```
 
-### 4. Push Database Schema
-```bash
-npm run db:push
-```
+Without `GEMINI_API_KEY` or `GOOGLE_API_KEY`, ingestion and stored-data views remain available, but live analysis returns a missing-key error. The local SQLite database is initialized automatically. Vercel's default `/tmp` database is ephemeral; configure a persistent LibSQL/Turso `DATABASE_URL` and `DATABASE_AUTH_TOKEN` for durable deployment data.
 
-### 5. Run Development Server
+### 4. Run Development Server
 ```bash
 npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 6. Run Test Suite
+### 5. Run Test Suite
 ```bash
 npm test
 ```
@@ -96,11 +114,11 @@ npm test
    - Keep **Root Directory** as `./` (default).
    - Framework preset will automatically be detected as **Next.js**.
 
-2. **Environment Variables (Optional)**:
-   - `GEMINI_API_KEY`: *(Optional)* Your Google Gemini API key for live analysis runs.
+2. **Environment Variables**:
+   - `GEMINI_API_KEY` or `GOOGLE_API_KEY`: Your Google Gemini API key for live analysis runs.
    - `DATABASE_URL`: *(Optional)* Your [Turso](https://turso.tech) LibSQL URL (`libsql://<your-db>.turso.io`) for persistent cloud database storage across serverless instances.
    - `DATABASE_AUTH_TOKEN`: *(Optional)* Turso authentication token.
-   *(If no database URL is set, the app runs using `/tmp` serverless SQLite).*
+   *(If no database URL is set, the app runs using `/tmp` serverless SQLite, which is not durable between instances.)*
 
 3. **Deploy**:
    - Click **Deploy**. Next.js Turbopack build and TypeScript validation will compile cleanly.
@@ -114,6 +132,7 @@ groww-sip-lab/
 ├── src/
 │   ├── app/                 # Next.js App Router (Pages, Layout, Server Actions)
 │   │   ├── evidence/        # Evidence table, filtering, ingestion modal
+│   │   ├── intelligence/    # Nine-dimension evidence-linked summaries
 │   │   ├── graph/           # D3 causal graph visualization
 │   │   ├── opportunities/   # Opportunity prioritization matrix
 │   │   ├── reliability/     # AI reliability metrics & evaluation

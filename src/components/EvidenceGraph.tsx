@@ -512,6 +512,10 @@ export function EvidenceGraph({
                 <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
                   Platform: <span style={{ textTransform: 'capitalize' }}>{selectedNode.details.platform}</span>
                   <br />
+                  Evidence basis: <strong>{selectedNode.details.provenance || 'Unclassified / unknown'}</strong>
+                  <br />
+                  AI analysis: {selectedNode.details.analysisProvider || 'not analysed'}
+                  <br />
                   Stage: {selectedNode.details.journeyStage}
                   <br />
                   <a

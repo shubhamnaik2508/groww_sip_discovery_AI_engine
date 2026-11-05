@@ -9,6 +9,7 @@ export async function clearAllTables() {
     DELETE FROM failure_cases;
     DELETE FROM reviews;
     DELETE FROM opportunity_scores;
+    DELETE FROM opportunity_score_audit;
     DELETE FROM opportunity_themes;
     DELETE FROM opportunities;
     DELETE FROM evidence_theme_links;

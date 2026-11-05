@@ -230,6 +230,17 @@ export async function initializeDatabase() {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS opportunity_score_audit (
+      id TEXT PRIMARY KEY,
+      opportunity_id TEXT NOT NULL REFERENCES opportunities(id),
+      criterion TEXT NOT NULL,
+      previous_score REAL,
+      new_score REAL NOT NULL,
+      rationale TEXT NOT NULL,
+      scored_by TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS research_questions (
       id TEXT PRIMARY KEY,
       question TEXT NOT NULL,

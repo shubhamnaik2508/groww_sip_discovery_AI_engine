@@ -14,12 +14,20 @@ export interface ThemeWithDetails {
   mergedIntoId: string | null;
   supportingCount: number;
   contradictingCount: number;
+  excludedFixtureCount: number;
+  genuineCount: number;
+  illustrativeCount: number;
+  sourceDiversity: number;
+  researchConfidence: string;
   evidenceQuotes: Array<{
     id: string;
     text: string;
     platform: string;
     sourceUrl: string;
     role: string;
+    synthetic?: boolean;
+    provenanceCategory?: string;
+    verificationStatus?: string;
   }>;
   behaviours: string[];
   hypotheses: string[];
@@ -290,7 +298,7 @@ export function ThemeMap({ initialThemes }: { initialThemes: ThemeWithDetails[] 
                                 }`}
                                 style={{ fontSize: '10px', textTransform: 'capitalize' }}
                               >
-                                {theme.status}
+                                {theme.genuineCount === 0 && theme.illustrativeCount > 0 ? `Illustrative · workflow ${theme.status}` : theme.status}
                               </span>
 
                               <span
@@ -306,19 +314,33 @@ export function ThemeMap({ initialThemes }: { initialThemes: ThemeWithDetails[] 
                           </div>
 
                           <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.45' }}>
-                            {theme.description}
+                            {theme.genuineCount === 0 && theme.illustrativeCount > 0
+                              ? `Illustrative theme from benchmark fixtures; not genuine research validation. ${theme.description.replace(/^Discovered from blind ground truth:\s*/i, '')}`
+                              : theme.description}
                           </p>
 
                           {/* Evidence Counts */}
                           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '12px' }}>
                             <span className="badge badge-emerald" style={{ fontSize: '11px' }}>
-                              ✓ {theme.supportingCount} Supporting
+                              ✓ {theme.supportingCount} linked supporting records
                             </span>
                             {theme.contradictingCount > 0 && (
                               <span className="badge badge-red" style={{ fontSize: '11px' }}>
                                 ✕ {theme.contradictingCount} Contradicting
                               </span>
                             )}
+                            {theme.excludedFixtureCount > 0 && (
+                              <span className="badge badge-zinc" style={{ fontSize: '10px' }}>
+                                {theme.excludedFixtureCount} fixture link(s) excluded
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '11px', color: 'var(--text-muted)' }}>
+                            <span>{theme.genuineCount > 0 ? theme.researchConfidence : 'Illustrative only'}</span>
+                            <span>{theme.evidenceQuotes.length} linked records</span>
+                            <span>{theme.sourceDiversity} source types</span>
+                            <span>{theme.genuineCount} genuine</span>
+                            <span>{theme.illustrativeCount} illustrative</span>
                           </div>
 
                           {/* Observed Behaviours */}
@@ -399,6 +421,7 @@ export function ThemeMap({ initialThemes }: { initialThemes: ThemeWithDetails[] 
                                   <div style={{ display: 'flex', gap: '8px', marginTop: '4px', fontSize: '10px', color: 'var(--text-muted)' }}>
                                     <span style={{ textTransform: 'capitalize' }}>{q.platform}</span>
                                     <span>•</span>
+                                    <span className={`badge ${q.synthetic ? 'badge-amber' : q.provenanceCategory === 'verified_public' ? 'badge-emerald' : 'badge-neutral'}`}>{q.provenanceCategory?.replace(/_/g, ' ') || q.verificationStatus || 'unverified'}</span>
                                     <a href={q.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>
                                       Source Link
                                     </a>

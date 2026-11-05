@@ -24,6 +24,7 @@ describe('ReviewService & Append-Only Audit Integrity', () => {
       journeyStage: 'market_dip_reaction',
       entryMethod: 'manual',
       isSynthetic: false,
+      verificationStatus: 'content_verified',
     });
 
     // 2. Run analysis

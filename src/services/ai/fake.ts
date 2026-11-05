@@ -6,8 +6,8 @@ export class FakeAIProvider implements AIProvider {
   readonly providerName = 'fake';
   readonly modelName = 'simulated-rule-engine-test-double';
   readonly modelVersion = '1.0.0-simulated-test';
-  readonly promptVersion = '2026-10-discovery-v1';
-  readonly schemaVersion = '1.0.0';
+  readonly promptVersion = '2026-11-investor-intelligence-v4-simulated';
+  readonly schemaVersion = '2.2.0';
 
   async analyzeRecord(
     record: AnalysisInputRecord,
@@ -19,6 +19,15 @@ export class FakeAIProvider implements AIProvider {
     // Check for off-topic or empty
     if (text.length < 10 || text.includes('unrelated text spam')) {
       const parsedOutput: StructuredAnalysisOutput = {
+        researchDimension: 'insufficient_evidence',
+        statedMotivation: null, motivationEvidence: null, statedExpectation: null, expectationEvidence: null,
+        cashFlowConflict: null, cashFlowEvidence: null, paymentTransactionIssue: null, paymentIssueEvidence: null,
+        confidenceConcern: null, confidenceEvidence: null, continuationStatusReason: null, continuationEvidence: null,
+        triggerOrContext: null, emotionalSignal: null,
+        existingWorkaround: null, workaroundEvidence: null, potentialUnmetNeed: null, unmetNeedEvidence: null,
+        relevantTextSpan: record.originalText.slice(0, Math.min(record.originalText.length, 25)),
+        missingInformation: ['Specific investor experience and context'],
+        explicitlyStatedSegment: { ageBand: null, incomeStability: null, investmentSource: null, startingInfluence: null, sipStatus: 'unknown' },
         theme: null,
         abstainReason: 'Insufficient evidence or off-topic feedback unrelated to mutual fund SIP journey.',
         journeyStage: 'unclear',
@@ -129,6 +138,33 @@ export class FakeAIProvider implements AIProvider {
     }
 
     const parsedOutput: StructuredAnalysisOutput = {
+      researchDimension: text.includes('check') || text.includes('how often') ? 'checking_monitoring'
+        : text.includes('reddit') || text.includes('google') || text.includes('youtube') || text.includes('friend') ? 'external_workarounds'
+        : text.includes('pause') || text.includes('cancel') || text.includes('stop') || text.includes('reduce') ? 'pause_reduction_discontinuation'
+        : text.includes('salary') || text.includes('goal') || text.includes('started sip') ? 'sip_starting_motivation'
+        : text.includes('confus') || text.includes('unclear') || text.includes('status') || text.includes('allot') || text.includes('nav') ? 'in_app_confusion_anxiety'
+        : 'unmet_needs',
+      statedMotivation: text.includes('because') || text.includes('goal') ? excerpt : null,
+      motivationEvidence: text.includes('because') || text.includes('goal') ? excerpt : null,
+      statedExpectation: null,
+      expectationEvidence: null,
+      cashFlowConflict: null,
+      cashFlowEvidence: null,
+      paymentTransactionIssue: null,
+      paymentIssueEvidence: null,
+      confidenceConcern: null,
+      confidenceEvidence: null,
+      continuationStatusReason: null,
+      continuationEvidence: null,
+      triggerOrContext: excerpt,
+      emotionalSignal: /worried|anxious|panic|frustrat|cheated|scared|confus/i.test(record.originalText) ? excerpt : null,
+      existingWorkaround: /reddit|google|youtube|friend|support|search/i.test(record.originalText) ? excerpt : null,
+      workaroundEvidence: /reddit|google|youtube|friend|support|search/i.test(record.originalText) ? excerpt : null,
+      potentialUnmetNeed: frictionType === 'unmet_need' || frictionType === 'confusion' ? `Clearer help for ${stage.replace(/_/g, ' ')} (model-generated candidate)` : null,
+      unmetNeedEvidence: frictionType === 'unmet_need' || frictionType === 'confusion' ? excerpt : null,
+      relevantTextSpan: excerpt,
+      missingInformation: ['Investor segment and 12-month SIP status are not established unless explicitly stated.'],
+      explicitlyStatedSegment: { ageBand: null, incomeStability: null, investmentSource: null, startingInfluence: null, sipStatus: 'unknown' },
       theme: finalTheme,
       abstainReason: null,
       journeyStage: stage,

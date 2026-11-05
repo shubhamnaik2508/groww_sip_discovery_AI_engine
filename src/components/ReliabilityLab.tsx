@@ -56,7 +56,7 @@ export function ReliabilityLab({
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 600 }}>AI Reliability & Ground-Truth Lab</h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginTop: '4px' }}>
-            Evaluating AI discovery accuracy against blind human-curated golden labels. Includes support-threshold guards and genuine failure audits.
+            Evaluation outcomes are separated by provider and evidence provenance. Genuine failure audits exclude fixtures and unverified records.
           </p>
         </div>
 
@@ -109,7 +109,7 @@ export function ReliabilityLab({
               Model: {evalResult.model || 'test-double'} ({evalResult.modelVersion || '1.0.0'})
             </span>
             <span className="badge badge-emerald">
-              Golden Set: {evalResult.totalGoldenRecords} items
+              Evaluation Sample: {evalResult.totalGoldenRecords} items
             </span>
           </div>
           <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
@@ -135,9 +135,9 @@ export function ReliabilityLab({
         >
           <span style={{ fontSize: '18px', lineHeight: 1 }}>🧪</span>
           <div>
-            <strong>SIMULATED TEST BENCHMARK (FakeAIProvider Test Double):</strong>{' '}
-            This evaluation was executed against the deterministic simulated test double for offline automated test suites.
-            <em> These agreement numbers represent software test suite assertions, NOT real-world Gemini AI model accuracy or live inference capability.</em>
+            <strong>SIMULATED TEST DOUBLE:</strong>{' '}
+            This historical evaluation used the deterministic FakeAIProvider, not a live AI model.
+            <em> Agreement is a software test diagnostic and is not model accuracy or investor research.</em>
           </div>
         </div>
       )}
@@ -182,8 +182,8 @@ export function ReliabilityLab({
         >
           <span style={{ fontSize: '18px', lineHeight: 1 }}>⚠️</span>
           <div>
-            <strong>Small Golden Set Diagnostic Sample (n = {evalResult.totalGoldenRecords}):</strong>{' '}
-            This evaluation benchmarks a curated diagnostic sample of 20 authentic investor records to surface systematic failure modes, prompt regressions, and classification alignment. It provides empirical guidance for engineering iterations, but is not mathematical proof of broad model generalization across the general population.
+            <strong>Evaluation Sample (n = {evalResult.totalGoldenRecords}):</strong>{' '}
+            Evidence basis: {evalResult.genuineSampleSize ?? 0} genuine eligible, {evalResult.illustrativeSampleSize ?? 0} illustrative fixture, and {evalResult.otherSampleSize ?? evalResult.totalGoldenRecords} other/ineligible record(s). Fixture outcomes are illustrative and cannot establish research findings or model performance on genuine investor evidence.
           </div>
         </div>
       )}
@@ -197,22 +197,22 @@ export function ReliabilityLab({
         }}
       >
         <div className="card" style={{ padding: '16px 20px' }}>
-          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Evaluated Golden Set</span>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Evaluated Labelled Sample</span>
           <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
             {evalResult ? evalResult.totalGoldenRecords : 0}
           </div>
-          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Blind verified benchmarks</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Genuine {evalResult?.genuineSampleSize ?? 0} · Illustrative {evalResult?.illustrativeSampleSize ?? 0} · Other {evalResult?.otherSampleSize ?? evalResult?.totalGoldenRecords ?? 0}</span>
         </div>
 
         <div className="card" style={{ padding: '16px 20px' }}>
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            {evalResult?.isSimulated || evalResult?.provider === 'fake' ? 'Simulated Agreement' : 'Exact Theme Agreement'}
+            {evalResult?.isSimulated || evalResult?.provider === 'fake' ? 'Simulated Agreement' : evalResult?.genuineSampleSize === 0 ? 'Illustrative Match Rate' : 'Exact Theme Agreement'}
           </span>
-          <div style={{ fontSize: '28px', fontWeight: 700, color: evalResult?.isSimulated ? 'var(--text-muted)' : 'var(--emerald-400)', marginTop: '4px' }}>
+          <div style={{ fontSize: '28px', fontWeight: 700, color: evalResult?.isSimulated || evalResult?.genuineSampleSize === 0 ? 'var(--text-muted)' : 'var(--emerald-400)', marginTop: '4px' }}>
             {evalResult ? `${(evalResult.accuracy * 100).toFixed(1)}%` : '0%'}
           </div>
           <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-            {evalResult?.isSimulated ? 'Deterministic test assertion' : 'Ground-truth match rate'}
+            {evalResult?.isSimulated ? 'Deterministic test assertion' : evalResult?.genuineSampleSize === 0 ? 'Illustrative data only' : 'Ground-truth match rate'}
           </span>
         </div>
 
@@ -232,6 +232,30 @@ export function ReliabilityLab({
           <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Audited with root-cause RCA</span>
         </div>
       </div>
+
+      {evalResult?.diagnostics && (
+        <section className="card">
+          <h3 style={{ fontSize: 16, fontWeight: 600 }}>Extraction quality diagnostics</h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 4 }}>
+            Denominators are limited to evaluated records with the required human label or model span. These checks assess extractability and literal grounding, not whether an interpretation is substantively correct.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12, marginTop: 14 }}>
+            {([
+              ['Journey-stage agreement', evalResult.diagnostics.journeyStageAgreement],
+              ['Behaviour extraction coverage', evalResult.diagnostics.behaviorExtractionCoverage],
+              ['Literal evidence grounding', evalResult.diagnostics.evidenceGroundingAccuracy],
+              ['Unsupported inference claims', evalResult.diagnostics.unsupportedInferenceRate],
+              ['Abstention precision', evalResult.diagnostics.abstentionPrecision],
+              ['Abstention recall', evalResult.diagnostics.abstentionRecall],
+            ] as const).map(([label, metric]) => <div key={label} style={{ border: '1px solid var(--border-subtle)', borderRadius: 10, padding: 12 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{label}</span>
+              <p style={{ fontSize: 18, fontWeight: 700, marginTop: 5 }}>{metric.denominator ? `${((metric.numerator / metric.denominator) * 100).toFixed(1)}%` : 'N/A'}</p>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{metric.numerator}/{metric.denominator} checks</p>
+            </div>)}
+          </div>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>Evaluation records with diagnostic notes: {evalResult.diagnostics.evaluationSampleSize}</p>
+        </section>
+      )}
 
       {/* Grid: Left Per-Theme Metrics (60%), Right Error Categories (40%) */}
       <div
@@ -527,7 +551,7 @@ export function ReliabilityLab({
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className="badge badge-red">RCA Log</span>
-            <h3 style={{ fontSize: '15px', fontWeight: 600 }}>Audited Genuine Failure Cases ({failureCases.length})</h3>
+            <h3 style={{ fontSize: '15px', fontWeight: 600 }}>Genuine Human-Corrected Failure Cases ({failureCases.length})</h3>
           </div>
           <p style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '4px' }}>
             Documented real failure cases showing original flawed model inference, human reviewer rationale, lessons learned, and active programmatic guards.
@@ -549,7 +573,7 @@ export function ReliabilityLab({
               {failureCases.length === 0 ? (
                 <tr>
                   <td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    No failure cases recorded yet. Seed the benchmark dataset to inspect real audited cases.
+                    No genuine human-corrected failure examples are recorded yet. Synthetic fixture analysis is excluded from this section.
                   </td>
                 </tr>
               ) : (

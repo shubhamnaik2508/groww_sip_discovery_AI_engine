@@ -1,7 +1,8 @@
 import { db, initializeDatabase } from '@/db';
-import { evidenceRecords, recordAnalyses, reviews, evidenceEdits } from '@/db/schema';
+import { evidenceRecords, recordAnalyses, reviews, evidenceEdits, analysisRuns } from '@/db/schema';
 import { desc } from 'drizzle-orm';
 import { EvidenceTable } from '@/components/EvidenceTable';
+import { classifyEvidenceProvenance, isSyntheticFixture } from '@/lib/evidenceEligibility';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,11 +15,11 @@ export default async function EvidencePage() {
     .orderBy(desc(evidenceRecords.createdAt))
     .all();
 
-  const allAnalyses = await db
-    .select()
-    .from(recordAnalyses)
-    .orderBy(desc(recordAnalyses.createdAt))
-    .all();
+  const [allAnalyses, allRuns] = await Promise.all([
+    db.select().from(recordAnalyses).orderBy(desc(recordAnalyses.createdAt)).all(),
+    db.select().from(analysisRuns).all(),
+  ]);
+  const runProviders = new Map(allRuns.map((run) => [run.id, { provider: run.provider, model: run.model, promptVersion: run.promptVersion }]));
 
   const allReviews = await db
     .select()
@@ -44,7 +45,7 @@ export default async function EvidencePage() {
     } catch {
       parsed = null;
     }
-    analysesByEvidence.get(a.evidenceId)!.push({ ...a, parsedOutput: parsed });
+    analysesByEvidence.get(a.evidenceId)!.push({ ...a, ...runProviders.get(a.runId), parsedOutput: parsed });
   }
 
   const reviewsByEvidence = new Map<string, any[]>();
@@ -94,7 +95,8 @@ export default async function EvidencePage() {
       journeyStage: rec.journeyStage,
       fieldProvenance: prov,
       entryMethod: rec.entryMethod,
-      isSynthetic: rec.isSynthetic,
+      isSynthetic: isSyntheticFixture(rec),
+      provenanceCategory: classifyEvidenceProvenance(rec),
       verificationStatus: (rec.verificationStatus as any) || 'unverified',
       verifiedAt: rec.verifiedAt,
       verifiedBy: rec.verifiedBy,

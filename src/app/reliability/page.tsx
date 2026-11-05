@@ -28,12 +28,12 @@ export default async function ReliabilityPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
           <span className="badge badge-emerald">AI Reliability Lab</span>
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            Transparent Empirical Validation & Guardrails
+            Evaluation Provenance & Guardrails
           </span>
         </div>
         <h1>Model Evaluation & Failure Case Lab</h1>
         <p style={{ color: 'var(--text-secondary)', maxWidth: '780px', marginTop: '6px', fontSize: '14px' }}>
-          Ground-truth validation comparing AI extractions against blind expert labels. Inspect confusion matrices, support-threshold guards, and genuine audited failure cases.
+          Compare stored AI classifications with saved labels. Evaluation sample provenance is shown separately; fixture results do not count as genuine investor evidence.
         </p>
       </div>
 

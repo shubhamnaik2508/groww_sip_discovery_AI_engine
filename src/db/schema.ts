@@ -219,6 +219,17 @@ export const opportunityScores = sqliteTable('opportunity_scores', {
   updatedAt: text('updated_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
 });
 
+export const opportunityScoreAudit = sqliteTable('opportunity_score_audit', {
+  id: text('id').primaryKey(),
+  opportunityId: text('opportunity_id').notNull().references(() => opportunities.id),
+  criterion: text('criterion').notNull(),
+  previousScore: real('previous_score'),
+  newScore: real('new_score').notNull(),
+  rationale: text('rationale').notNull(),
+  scoredBy: text('scored_by').notNull(),
+  createdAt: text('created_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
+});
+
 // 16. Research Questions
 export const researchQuestions = sqliteTable('research_questions', {
   id: text('id').primaryKey(),

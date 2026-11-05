@@ -264,8 +264,9 @@ export async function seedBenchmarkData() {
   const createdRecordIds: { [url: string]: string } = {};
 
   // 1. Idempotently Ingest Synthetic Benchmark Fixtures & Register Golden Labels
-  for (const item of BENCHMARK_ITEMS) {
+  for (const [fixtureIndex, item] of BENCHMARK_ITEMS.entries()) {
     const contentHash = computeContentHash(item.originalText);
+    const fixtureSourceUrl = `https://example.invalid/groww-sip-lab/synthetic-fixture-${fixtureIndex + 1}`;
 
     // CRITICAL: Only look for existing SYNTHETIC FIXTURES, never match user records.
     // This prevents the seeder from ever finding or modifying genuine user-imported records
@@ -276,7 +277,6 @@ export async function seedBenchmarkData() {
       .where(
         and(
           eq(evidenceRecords.contentHash, contentHash),
-          eq(evidenceRecords.isSynthetic, true),
           eq(evidenceRecords.entryMethod, 'fixture')
         )
       )
@@ -290,6 +290,7 @@ export async function seedBenchmarkData() {
       await db
         .update(evidenceRecords)
         .set({
+          sourceUrl: fixtureSourceUrl,
           isSynthetic: true,
           verificationStatus: 'synthetic_fixture',
           updatedAt: new Date().toISOString(),
@@ -301,7 +302,7 @@ export async function seedBenchmarkData() {
       // will set duplicateOfId (informational only) but NEVER modify the user record.
       const res = await EvidenceService.createManualRecord(
         {
-          sourceUrl: item.sourceUrl,
+          sourceUrl: fixtureSourceUrl,
           platform: item.platform as any,
           collectedAt: item.collectedAt,
           originalText: item.originalText,
@@ -500,10 +501,12 @@ export async function seedBenchmarkData() {
     existingOppTitles.add(opp2Title);
   }
 
-  // 6. Run evaluation on analysis run if available
-  if (runSummary.runId && runSummary.successfulRecords > 0) {
+  // 6. Evaluate only against eligible (non-fixture) human labels. Benchmark
+  // fixtures are useful for demos, but cannot substantiate model metrics.
+  const eligibleGoldenLabels = await EvaluationService.listGoldenLabels();
+  if (eligibleGoldenLabels.length > 0 && runSummary.runId && runSummary.successfulRecords > 0) {
     await EvaluationService.evaluateAnalysisRun(runSummary.runId);
-  } else {
+  } else if (eligibleGoldenLabels.length > 0) {
     // If skipped, check if any evaluation exists
     const latestEval = await EvaluationService.getLatestEvaluation();
     if (!latestEval) {

@@ -10,6 +10,7 @@ import {
 } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import crypto from 'crypto';
+import { isGenuineResearchEvidence, isSyntheticFixture } from '@/lib/evidenceEligibility';
 
 export type SpecialLabel = 'standard' | 'insufficient_evidence' | 'ambiguous';
 
@@ -41,6 +42,51 @@ export interface ConfusionMatrixCell {
   actual: string;
   predicted: string;
   count: number;
+}
+
+type DiagnosticItem = {
+  journeyStageComparable: boolean;
+  journeyStageMatch: boolean;
+  behaviorLabelAvailable: boolean;
+  behaviorExtracted: boolean;
+  groundedSpanMatches: number;
+  groundedSpanTotal: number;
+  inferenceClaims: number;
+  unsupportedInferenceClaims: number;
+  actualAbstain: boolean;
+  predictedAbstain: boolean;
+};
+
+function summarizeDiagnosticItems(items: Array<{ notes?: string | null }>) {
+  const diagnostics = items.flatMap((item) => {
+    try {
+      const value = item.notes ? JSON.parse(item.notes) as DiagnosticItem : null;
+      return value && typeof value === 'object' ? [value] : [];
+    } catch { return []; }
+  });
+  const stageItems = diagnostics.filter((item) => item.journeyStageComparable);
+  const behaviorItems = diagnostics.filter((item) => item.behaviorLabelAvailable);
+  const totalSpans = diagnostics.reduce((sum, item) => sum + item.groundedSpanTotal, 0);
+  const matchedSpans = diagnostics.reduce((sum, item) => sum + item.groundedSpanMatches, 0);
+  const inferenceClaims = diagnostics.reduce((sum, item) => sum + item.inferenceClaims, 0);
+  const unsupportedInferenceClaims = diagnostics.reduce((sum, item) => sum + item.unsupportedInferenceClaims, 0);
+  const abstentions = diagnostics.filter((item) => item.predictedAbstain);
+  const abstentionTruePositives = abstentions.filter((item) => item.actualAbstain).length;
+  const actualAbstentions = diagnostics.filter((item) => item.actualAbstain).length;
+  return {
+    journeyStageAgreement: { numerator: stageItems.filter((item) => item.journeyStageMatch).length, denominator: stageItems.length },
+    behaviorExtractionCoverage: { numerator: behaviorItems.filter((item) => item.behaviorExtracted).length, denominator: behaviorItems.length },
+    evidenceGroundingAccuracy: { numerator: matchedSpans, denominator: totalSpans },
+    unsupportedInferenceRate: { numerator: unsupportedInferenceClaims, denominator: inferenceClaims },
+    abstentionPrecision: { numerator: abstentionTruePositives, denominator: abstentions.length },
+    abstentionRecall: { numerator: abstentionTruePositives, denominator: actualAbstentions },
+    evaluationSampleSize: diagnostics.length,
+  };
+}
+
+function normalizedContains(source: string, excerpt: string) {
+  const normalize = (text: string) => text.toLocaleLowerCase().replace(/\s+/g, ' ').trim();
+  return Boolean(excerpt && normalize(source).includes(normalize(excerpt)));
 }
 
 export class EvaluationService {
@@ -147,6 +193,12 @@ export class EvaluationService {
         evidenceText: evidenceRecords.originalText,
         sourceUrl: evidenceRecords.sourceUrl,
         platform: evidenceRecords.platform,
+        entryMethod: evidenceRecords.entryMethod,
+        isSynthetic: evidenceRecords.isSynthetic,
+        verificationStatus: evidenceRecords.verificationStatus,
+        duplicateOfId: evidenceRecords.duplicateOfId,
+        fieldProvenance: evidenceRecords.fieldProvenance,
+        sourceMetadata: evidenceRecords.sourceMetadata,
         themeName: themes.name,
       })
       .from(goldenLabels)
@@ -155,7 +207,7 @@ export class EvaluationService {
       .orderBy(desc(goldenLabels.labelledAt))
       .all();
 
-    return rows;
+    return rows.filter((row) => isGenuineResearchEvidence(row));
   }
 
   /**
@@ -282,6 +334,33 @@ export class EvaluationService {
       const pairKey = `${actualClass}:::${predictedClass}`;
       confusionMap.set(pairKey, (confusionMap.get(pairKey) || 0) + 1);
 
+      const aiOutput = parsedAi && typeof parsedAi === 'object' ? parsedAi as Record<string, unknown> : {};
+      const claims = Array.isArray(aiOutput.claims)
+        ? aiOutput.claims.filter((claim): claim is Record<string, unknown> => Boolean(claim && typeof claim === 'object'))
+        : [];
+      const context = aiOutput.investorContext && typeof aiOutput.investorContext === 'object' ? aiOutput.investorContext as Record<string, unknown> : {};
+      const friction = aiOutput.statedFriction && typeof aiOutput.statedFriction === 'object' ? aiOutput.statedFriction as Record<string, unknown> : {};
+      const candidateSpans: string[] = [
+        aiOutput.evidenceExcerpt,
+        aiOutput.relevantTextSpan,
+        context.supportingQuote,
+        friction.supportingQuote,
+        ...claims.map((claim) => claim.groundingExcerpt),
+      ].filter((span): span is string => typeof span === 'string' && span.trim().length > 0);
+      const inferenceClaims = claims.filter((claim) => claim.type === 'inference');
+      const diagnosticItem: DiagnosticItem = {
+        journeyStageComparable: Boolean(golden.journeyStage && typeof aiOutput.journeyStage === 'string'),
+        journeyStageMatch: Boolean(golden.journeyStage && typeof aiOutput.journeyStage === 'string' && golden.journeyStage === aiOutput.journeyStage),
+        behaviorLabelAvailable: Boolean(golden.observedBehaviour?.trim()),
+        behaviorExtracted: Boolean(typeof aiOutput.observedBehaviour === 'string' && aiOutput.observedBehaviour.trim()),
+        groundedSpanMatches: candidateSpans.filter((span) => normalizedContains(golden.evidenceText, span)).length,
+        groundedSpanTotal: candidateSpans.length,
+        inferenceClaims: inferenceClaims.length,
+        unsupportedInferenceClaims: inferenceClaims.filter((claim) => !normalizedContains(golden.evidenceText, typeof claim.groundingExcerpt === 'string' ? claim.groundingExcerpt : '')).length,
+        actualAbstain: actualClass === 'abstention',
+        predictedAbstain: predictedClass === 'abstention',
+      };
+
       evalItemsToInsert.push({
         id: crypto.randomUUID(),
         evaluationRunId: evalRunId,
@@ -292,6 +371,7 @@ export class EvaluationService {
         actualTheme: actualClass,
         isMatch: Boolean(isMatch),
         errorCategory,
+        notes: JSON.stringify(diagnosticItem),
       });
     }
 
@@ -300,6 +380,7 @@ export class EvaluationService {
     }
 
     const accuracy = exactMatches / evaluatedCount;
+    const diagnostics = summarizeDiagnosticItems(evalItemsToInsert);
     const abstentionAccuracy =
       totalAbstentionGoldens > 0 ? abstentionMatches / totalAbstentionGoldens : null;
 
@@ -397,6 +478,7 @@ export class EvaluationService {
       confusionMatrix,
       abstentionAccuracy,
       errorCategoryCounts,
+      diagnostics,
       smallSampleWarning: evaluatedCount < 50,
       warningMessage: isSimulated
         ? 'SIMULATED TEST BENCHMARK: Evaluated using FakeAIProvider rule engine. This measures deterministic unit test assertion coverage, NOT real-world Gemini AI model accuracy.'
@@ -446,15 +528,24 @@ export class EvaluationService {
         actualTheme: evaluationItems.actualTheme,
         isMatch: evaluationItems.isMatch,
         errorCategory: evaluationItems.errorCategory,
+        notes: evaluationItems.notes,
         evidenceText: evidenceRecords.originalText,
         sourceUrl: evidenceRecords.sourceUrl,
         platform: evidenceRecords.platform,
+        entryMethod: evidenceRecords.entryMethod,
+        isSynthetic: evidenceRecords.isSynthetic,
+        verificationStatus: evidenceRecords.verificationStatus,
+        duplicateOfId: evidenceRecords.duplicateOfId,
+        fieldProvenance: evidenceRecords.fieldProvenance,
+        sourceMetadata: evidenceRecords.sourceMetadata,
       })
       .from(evaluationItems)
       .innerJoin(evidenceRecords, eq(evaluationItems.evidenceId, evidenceRecords.id))
       .where(eq(evaluationItems.evaluationRunId, run.id))
       .all();
 
+    const genuineSampleSize = items.filter((item) => isGenuineResearchEvidence(item)).length;
+    const illustrativeSampleSize = items.filter((item) => isSyntheticFixture(item)).length;
     return {
       ...run,
       provider: provider || 'unknown',
@@ -467,6 +558,11 @@ export class EvaluationService {
       confusionMatrix: JSON.parse(run.confusionMatrix) as ConfusionMatrixCell[],
       commonErrorCategories: JSON.parse(run.commonErrorCategories) as Record<string, number>,
       items,
+      genuineSampleSize,
+      illustrativeSampleSize,
+      otherSampleSize: Math.max(0, items.length - genuineSampleSize - illustrativeSampleSize),
+      diagnostics: summarizeDiagnosticItems(items),
     };
   }
 }
+

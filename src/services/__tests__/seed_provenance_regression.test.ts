@@ -153,4 +153,34 @@ describe('Benchmark Seeding: User Record Provenance Protection', () => {
     expect(afterDoubleSeed[0].verificationStatus).toBe('user_entered');
     expect(afterDoubleSeed[0].entryMethod).toBe('manual');
   });
+
+  it('recognizes legacy fixture-provenance rows with a stale false synthetic flag during re-seeding', async () => {
+    const legacyFixture = BENCHMARK_ITEMS[0];
+    const oldRow = await EvidenceService.createManualRecord({
+      sourceUrl: legacyFixture.sourceUrl,
+      platform: legacyFixture.platform as any,
+      collectedAt: legacyFixture.collectedAt,
+      originalText: legacyFixture.originalText,
+      journeyStage: legacyFixture.journeyStage as any,
+      entryMethod: 'fixture',
+      isSynthetic: false,
+      verificationStatus: 'unverified',
+      fieldProvenance: {
+        sourceUrl: 'curated_benchmark',
+        platform: 'curated_benchmark',
+        collectedAt: 'curated_benchmark',
+        originalText: 'curated_benchmark',
+        journeyStage: 'curated_benchmark',
+      },
+    });
+    await db.update(evidenceRecords).set({ isSynthetic: false, verificationStatus: 'unverified' }).where(eq(evidenceRecords.id, oldRow.id));
+
+    await seedBenchmarkData();
+
+    const matchingRows = await db.select().from(evidenceRecords).where(eq(evidenceRecords.contentHash, (await db.select().from(evidenceRecords).where(eq(evidenceRecords.id, oldRow.id)))[0].contentHash));
+    expect(matchingRows).toHaveLength(1);
+    expect(matchingRows[0].id).toBe(oldRow.id);
+    expect(matchingRows[0].isSynthetic).toBe(true);
+    expect(matchingRows[0].verificationStatus).toBe('synthetic_fixture');
+  });
 });

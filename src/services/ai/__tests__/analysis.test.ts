@@ -81,6 +81,47 @@ describe('AI Analysis Pipeline & Safety Guards', () => {
     expect(guardResult.guardErrors.some((e) => e.includes('Hallucinated Context'))).toBe(true);
   });
 
+  it('rejects an inferred demographic and an observation without a source span', () => {
+    const text = 'I started a SIP after watching a YouTube video.';
+    const output: StructuredAnalysisOutput = {
+      theme: null,
+      abstainReason: 'Insufficient evidence for a personal investment status.',
+      journeyStage: 'unclear',
+      observedBehaviour: 'The writer says they started a SIP.',
+      evidenceExcerpt: text,
+      explicitlyStatedSegment: { ageBand: '25–30', startingInfluence: 'YouTube' },
+      segmentEvidence: { ageBand: null, startingInfluence: 'YouTube video' },
+      claims: [{ text: 'The investor is 25–30 years old.', type: 'observation' }],
+      uncertaintyAnalysis: 'Age is not stated.',
+      followUpResearchQuestion: 'How old is the investor?',
+      selfReportedConfidence: 'low',
+    };
+    const result = validateOutputGuards(text, output);
+    expect(result.isValid).toBe(false);
+    expect(result.guardErrors.some((error) => error.includes('Unsupported Segment'))).toBe(true);
+    expect(result.guardErrors.some((error) => error.includes('Ungrounded Observation'))).toBe(true);
+  });
+
+  it('rejects question-specific interpretations without an exact supporting quote', () => {
+    const output: StructuredAnalysisOutput = {
+      theme: null,
+      abstainReason: null,
+      journeyStage: 'unclear',
+      observedBehaviour: 'The source is a question.',
+      evidenceExcerpt: 'Should I pause my SIP if rent goes up?',
+      statedExpectation: 'Expected high returns',
+      expectationEvidence: 'I expected high returns',
+      claims: [{ text: 'The source asks whether to pause an SIP.', type: 'observation', groundingExcerpt: 'Should I pause my SIP' }],
+      uncertaintyAnalysis: 'It is a hypothetical question and does not establish the writer had this experience.',
+      sipContinuationHypothesis: null,
+      followUpResearchQuestion: 'Was this a personal experience?',
+      selfReportedConfidence: 'low',
+    };
+    const result = validateOutputGuards('Should I pause my SIP if rent goes up?', output);
+    expect(result.isValid).toBe(false);
+    expect(result.guardErrors.some((error) => error.includes('Unsupported statedExpectation'))).toBe(true);
+  });
+
   it('executes end-to-end analysis run with FakeAIProvider and persists immutable outputs', async () => {
     // 1. Ingest an evidence record
     const { id } = await EvidenceService.createManualRecord({

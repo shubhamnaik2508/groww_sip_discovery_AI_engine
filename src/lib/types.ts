@@ -4,6 +4,8 @@ export const PlatformSchema = z.enum([
   'play_store',
   'app_store',
   'reddit',
+  'trading_qa',
+  'google_forms',
   'twitter_x',
   'youtube',
   'community_forum',

@@ -2,13 +2,12 @@ import { db, initializeDatabase } from '@/db';
 import {
   evidenceRecords,
   themes,
-  opportunities,
-  failureCases,
 } from '@/db/schema';
 import { ExportService } from '@/services/export';
 import { EvidenceService } from '@/services/evidence';
 import { EvaluationService } from '@/services/evaluation';
 import { ExportView } from '@/components/ExportView';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,16 +20,16 @@ export default async function ExportPage() {
 
   const allRecords = await db.select().from(evidenceRecords).all();
   const allThemes = await db.select().from(themes).all();
-  const allOpps = await db.select().from(opportunities).all();
-  const allFailures = await db.select().from(failureCases).all();
   const evalResult = await EvaluationService.getLatestEvaluation();
 
   const summary = {
-    totalRecords: allRecords.length,
+    totalRecords: jsonData.summary.eligibleNonFixtureRecordsCount,
+    storedRecords: allRecords.length,
+    syntheticRecords: jsonData.summary.syntheticRecordsCount,
     totalThemes: allThemes.length,
-    totalOpportunities: allOpps.length,
+    totalOpportunities: jsonData.opportunities.filter((opportunity) => opportunity.hasEligibleEvidence).length,
     evaluationAccuracy: evalResult ? evalResult.accuracy : null,
-    failureCasesCount: allFailures.length,
+    failureCasesCount: jsonData.failureCases.length,
   };
 
   return (
@@ -55,6 +54,10 @@ export default async function ExportPage() {
         jsonData={jsonData}
         summary={summary}
       />
+      <section className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+        <div><h2 style={{ fontSize: 16 }}>Standalone AI Evidence Log</h2><p style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 5 }}>Print-ready research provenance and evaluation document. The PDF is generated locally from your browser’s print dialog.</p></div>
+        <Link href="/evidence-log" className="btn btn-primary">Open AI Evidence Log document →</Link>
+      </section>
     </div>
   );
 }
