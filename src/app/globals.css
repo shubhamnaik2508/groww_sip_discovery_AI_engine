@@ -79,6 +79,48 @@
   --graph-text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
+/* Light Oceanic Blue: white cards, pale blue canvas, and readable navy text. */
+:root:not([data-theme]),
+:root[data-theme="cool"] {
+  --bg-canvas: #f0f7fc;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #edf6fc;
+  --bg-surface-raised: #e7f2fa;
+  --bg-surface-active: #dceef9;
+  --header-bg: rgba(255, 255, 255, 0.97);
+  --quote-bg: #edf6fc;
+  --border-subtle: #91adc1;
+  --border-strong: #587d98;
+  --border-focus: #0369a1;
+  --text-primary: #102f46;
+  --text-secondary: #34546b;
+  --text-muted: #49677c;
+  --text-inverse: #ffffff;
+  --emerald-400: #075985;
+  --emerald-500: #0369a1;
+  --emerald-600: #075985;
+  --emerald-glow: rgba(3, 105, 161, 0.08);
+  --emerald-border: rgba(3, 105, 161, 0.4);
+  --amber-400: #854d0e;
+  --amber-500: #854d0e;
+  --red-400: #b91c1c;
+  --red-500: #b91c1c;
+  --blue-400: #1d4ed8;
+  --blue-500: #1d4ed8;
+  --purple-400: #7e22ce;
+  --purple-500: #7e22ce;
+  --shadow-sm: 0 1px 3px rgba(16, 47, 70, 0.06);
+  --shadow-md: 0 4px 12px rgba(16, 47, 70, 0.09);
+  --shadow-lg: 0 8px 24px rgba(16, 47, 70, 0.12);
+  --modal-overlay: rgba(16, 47, 70, 0.4);
+  --graph-text-shadow: 0 1px 2px rgba(255, 255, 255, 0.95);
+}
+
+html:not([data-theme]), html:not([data-theme]) body,
+html[data-theme="cool"], html[data-theme="cool"] body {
+  color-scheme: light;
+}
+
 /* Warm Dark Theme (Espresso Dark, Warm Parchment & Honey Amber) */
 [data-theme="warm"],
 [data-theme="warm-dark"] {

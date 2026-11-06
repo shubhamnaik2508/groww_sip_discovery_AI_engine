@@ -120,9 +120,9 @@ export function EvidenceGraph({
   const getNodeColor = (type: string) => {
     switch (type) {
       case 'outcome':
-        return '#06b6d4'; // Cyan - Fellowship Target Outcome
+        return 'var(--emerald-400)'; // Cyan - Fellowship Target Outcome
       case 'opportunity':
-        return '#f59e0b'; // Amber - Candidate Problem Space Opportunity
+        return 'var(--amber-400)'; // Amber - Candidate Problem Space Opportunity
       case 'theme':
         return 'var(--emerald-400)'; // Emerald - Discovered Lifecycle Theme
       case 'source':
@@ -132,7 +132,7 @@ export function EvidenceGraph({
       case 'question':
         return 'var(--red-400)'; // Rose - Open Qualitative Inquiry
       case 'record':
-        return '#e2e8f0'; // Slate - Verbatim Evidence Excerpt
+        return 'var(--text-secondary)'; // Slate - Verbatim Evidence Excerpt
       default:
         return 'var(--text-muted)';
     }
@@ -193,7 +193,7 @@ export function EvidenceGraph({
               checked={showRecords}
               onChange={(e) => setShowRecords(e.target.checked)}
             />
-            <span style={{ color: '#e2e8f0' }}>● Evidence ({initialNodes.filter((n) => n.type === 'record').length})</span>
+            <span style={{ color: 'var(--text-secondary)' }}>● Evidence ({initialNodes.filter((n) => n.type === 'record').length})</span>
           </label>
 
           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer' }}>
@@ -211,7 +211,7 @@ export function EvidenceGraph({
               checked={showOpportunities}
               onChange={(e) => setShowOpportunities(e.target.checked)}
             />
-            <span style={{ color: '#f59e0b' }}>● Opportunities ({initialNodes.filter((n) => n.type === 'opportunity').length})</span>
+            <span style={{ color: 'var(--amber-400)' }}>● Opportunities ({initialNodes.filter((n) => n.type === 'opportunity').length})</span>
           </label>
 
           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer' }}>
@@ -220,7 +220,7 @@ export function EvidenceGraph({
               checked={showOutcomes}
               onChange={(e) => setShowOutcomes(e.target.checked)}
             />
-            <span style={{ color: '#06b6d4' }}>● North Star Metric ({initialNodes.filter((n) => n.type === 'outcome').length})</span>
+            <span style={{ color: 'var(--emerald-400)' }}>● North Star Metric ({initialNodes.filter((n) => n.type === 'outcome').length})</span>
           </label>
 
           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer' }}>
@@ -471,7 +471,7 @@ export function EvidenceGraph({
                   gap: '8px',
                 }}
               >
-                <div style={{ fontSize: '12px', color: '#06b6d4', fontWeight: 600 }}>
+                <div style={{ fontSize: '12px', color: 'var(--emerald-400)', fontWeight: 600 }}>
                   Fellowship North Star Business Metric
                 </div>
                 <div style={{ fontSize: '13px', color: 'var(--text-primary)', lineHeight: '1.4' }}>

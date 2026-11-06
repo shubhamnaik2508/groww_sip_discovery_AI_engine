@@ -18,7 +18,7 @@ const THEMES: ThemeOption[] = [
     label: 'Oceanic Blue',
     shortLabel: 'Oceanic Blue',
     icon: '🌊',
-    description: 'Deep ocean surfaces with clear sky blue accents',
+    description: 'White surfaces, pale ocean blue backgrounds, and clear navy text',
   },
   {
     id: 'warm',
