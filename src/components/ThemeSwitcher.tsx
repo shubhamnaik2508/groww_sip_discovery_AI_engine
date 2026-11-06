@@ -15,10 +15,10 @@ interface ThemeOption {
 const THEMES: ThemeOption[] = [
   {
     id: 'cool',
-    label: 'Cool Emerald',
-    shortLabel: 'Emerald',
-    icon: '🌿',
-    description: 'Groww dark fintech graphite & emerald glow',
+    label: 'Oceanic Blue',
+    shortLabel: 'Oceanic Blue',
+    icon: '🌊',
+    description: 'Deep ocean surfaces with clear sky blue accents',
   },
   {
     id: 'warm',
@@ -42,7 +42,8 @@ export function ThemeSwitcher() {
 
   useEffect(() => {
     setMounted(true);
-    const stored = localStorage.getItem('groww_sip_theme') as ThemeMode | null;
+    let stored: ThemeMode | null = null;
+    try { stored = localStorage.getItem('groww_sip_theme') as ThemeMode | null; } catch { /* Use default when storage is unavailable. */ }
     if (stored && (stored === 'cool' || stored === 'warm' || stored === 'warm-paper')) {
       setCurrentTheme(stored);
       applyTheme(stored);
@@ -57,7 +58,7 @@ export function ThemeSwitcher() {
     } else {
       document.documentElement.setAttribute('data-theme', theme);
     }
-    localStorage.setItem('groww_sip_theme', theme);
+    try { localStorage.setItem('groww_sip_theme', theme); } catch { /* Theme selection still works without storage. */ }
   };
 
   const handleSelect = (theme: ThemeMode) => {
@@ -87,6 +88,7 @@ export function ThemeSwitcher() {
       aria-label="Color Palette Switcher"
       style={{
         display: 'inline-flex',
+        flexWrap: 'wrap',
         alignItems: 'center',
         padding: '2px',
         background: 'var(--bg-surface)',

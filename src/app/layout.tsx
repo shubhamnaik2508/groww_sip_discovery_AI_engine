@@ -35,7 +35,7 @@ export default function RootLayout({
                 </Link>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
                 <ThemeSwitcher />
                 <span className="badge badge-neutral" title="Discovery Engine Environment">
                   <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--emerald-500)', marginRight: '4px' }}></span>
