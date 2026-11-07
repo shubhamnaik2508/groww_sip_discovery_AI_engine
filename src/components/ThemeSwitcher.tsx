@@ -15,10 +15,10 @@ interface ThemeOption {
 const THEMES: ThemeOption[] = [
   {
     id: 'cool',
-    label: 'Oceanic Blue',
-    shortLabel: 'Oceanic Blue',
+    label: 'Ocean Slate',
+    shortLabel: 'Ocean Slate',
     icon: '🌊',
-    description: 'White surfaces, pale ocean blue backgrounds, and clear navy text',
+    description: 'Deep navy canvas, slate cards, off-white text, and ocean blue accents',
   },
   {
     id: 'warm',
