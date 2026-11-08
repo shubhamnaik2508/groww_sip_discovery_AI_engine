@@ -25,6 +25,7 @@ function FeatureCard({ name, feature, signals, opp, unresolved }: { name: string
           </span>
         ) : null}
       </div>
+      <div className="rx-scroll">
       <table className="rx-table">
         <thead>
           <tr>
@@ -63,6 +64,7 @@ function FeatureCard({ name, feature, signals, opp, unresolved }: { name: string
           ))}
         </tbody>
       </table>
+      </div>
       <div className="rx-small" style={{ display: 'flex', flexDirection: 'column', gap: 6, lineHeight: 1.5 }}>
         <p>
           <strong>Addresses:</strong> {supported.length ? supported.map((s) => s.label.toLowerCase()).join('; ') : 'no assumed problem currently has supporting evidence'}.

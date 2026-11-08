@@ -18,8 +18,11 @@ function file(body: string, name: string, type: string) {
   });
 }
 
-const csv = (rows: Array<Record<string, unknown>>) =>
-  Papa.unparse(rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, sanitizeForCsvExport(v)]))));
+const REVIEW_SHEET_FIELDS = ['item', 'record_analysis_id', 'platform', 'source_url', 'original_text', 'ai_model', 'ai_theme', 'ai_codes', 'ai_quotes', 'verdict', 'corrected_codes', 'correction_note', 'reviewer'];
+
+// Formula-injection safe CSV with a header row even when there are no rows yet.
+const csv = (rows: Array<Record<string, unknown>>, fields = REVIEW_SHEET_FIELDS) =>
+  Papa.unparse({ fields, data: rows.map((r) => fields.map((k) => sanitizeForCsvExport(r[k]))) });
 
 export async function GET(request: Request) {
   const type = new URL(request.url).searchParams.get('type');

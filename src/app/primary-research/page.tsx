@@ -135,6 +135,7 @@ export default async function PrimaryResearchPage() {
                   {s.note ? <p className="rx-small rx-muted">{s.note} Mean selections per respondent: {s.meanSelections}.</p> : null}
                   {s.missing ? <p className="rx-small" style={{ color: 'var(--rx-warn)' }}>{s.missing} respondent(s) left this blank; they are excluded from this question’s denominator.</p> : null}
                   {s.options.length ? (
+                    <div className="rx-scroll">
                     <table className="rx-table">
                       <thead>
                         <tr>
@@ -157,6 +158,7 @@ export default async function PrimaryResearchPage() {
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   ) : null}
                   {s.openTextAnswers ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

@@ -49,14 +49,14 @@ export default async function OpportunitiesPage() {
             <thead>
               <tr>
                 <th className="rx-right">Rank</th>
-                <th>Opportunity</th>
+                <th style={{ minWidth: 240 }}>Opportunity</th>
                 <th className="rx-right">Survey support</th>
                 <th className="rx-right">Public support</th>
-                <th>Score parts (survey + public + diversity + convergence)</th>
+                <th title="survey + public + diversity + convergence">Score parts</th>
                 <th className="rx-right">Score</th>
                 <th>Evidence</th>
-                <th className="rx-right">Rank: survey only</th>
-                <th className="rx-right">Rank: public only</th>
+                <th className="rx-right">Survey-only rank</th>
+                <th className="rx-right">Public-only rank</th>
               </tr>
             </thead>
             <tbody>
