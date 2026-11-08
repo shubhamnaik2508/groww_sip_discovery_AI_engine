@@ -100,7 +100,13 @@ export function ResearchLogSections({ log }: { log: EvidenceLog }) {
       </section>
 
       <section>
-        <h2>10. Scope and next steps</h2>
+        <h2>10. Public access and live AI demo</h2>
+        <ul>{log.access.points.map((x) => <li key={x}>{x}</li>)}</ul>
+        <p>{log.access.verification}</p>
+      </section>
+
+      <section>
+        <h2>11. Scope and next steps</h2>
         <ul>{log.limitations.map((l) => <li key={l}>{l}</li>)}</ul>
         <p className="document-disclaimer"><strong>Test fixtures (separate track):</strong> {log.simulated}</p>
       </section>

@@ -3,6 +3,8 @@ import { CODE_DEFINITIONS, codeLabel } from '@/lib/research/codebook';
 import { selectValidationSample, summariseValidation, VALIDATION_SAMPLE_SIZE } from '@/lib/research/validation';
 import { RECORD_PROMPT_VERSION } from '@/services/ai/record-analysis';
 import type { SynthesisOutput } from './ai-research';
+import { DEMO_LIMITS } from '@/services/demo/guard';
+import { DEMO_RECORD_IDS } from '@/services/demo/demo';
 import type { ResearchState } from './triangulation-service';
 
 const PLATFORM: Record<string, string> = { play_store: 'Google Play reviews', trading_qa: 'TradingQ&A forum', youtube: 'YouTube comments', reddit: 'Reddit' };
@@ -133,6 +135,16 @@ export function buildEvidenceLog(state: ResearchState) {
       'Opportunity scores rank the breadth and convergence of evidence; next step: interviews and usage data to add severity and business impact.',
       'Bundled datasets load automatically on every deployment; connecting a hosted database (DATABASE_URL) keeps data imported through the UI permanently.',
     ],
+    access: {
+      points: [
+        'The deployed Discovery Engine is open to anyone: no login, passcode or API key. Every page, filter, trace and export is available to visitors.',
+        'The official research record is read-only on the public site. Survey imports, validation reviews and saved AI runs are refused inside the server actions on every public deployment; they run only in the researcher’s private workspace.',
+        `Live AI demo: visitors can re-run the AI analysis (Gemini by default, Groq optional) on ${DEMO_RECORD_IDS.length} genuine records from the dataset, up to ${DEMO_LIMITS.maxRecordsPerRun} per run, and generate a fresh triangulation synthesis. Live results are labelled “Live · not saved”, shown beside the stored official result, and never written to the research record.`,
+        `Spending safeguards are enforced on the server in shared persistent storage (Upstash Redis): ${DEMO_LIMITS.dailyCalls} AI calls and ${DEMO_LIMITS.dailyTokens.toLocaleString('en-IN')} tokens per day across all visitors; ${DEMO_LIMITS.visitorHourlyCalls} calls per hour and ${DEMO_LIMITS.visitorDailyCalls} per day per visitor (hashed IP and browser, never stored raw); capped output length; automated-client filtering; and two kill switches. Without the shared store the demo stays off.`,
+      ],
+      verification:
+        'Verification (8 November 2026): live Gemini re-runs of two demo records, one locally and one on the public site, reproduced the stored official coding exactly (same codebook themes and theme names). Direct scripted requests were refused by the server before any AI call, and the per-visitor allowance persisted across new browser sessions.',
+    },
     simulated: 'Software test fixtures (20 curated benchmark records and a simulated rule engine, the source of the earlier 17/20 benchmark figure) are kept in a separate test track and excluded from every research count above.',
   };
 }
@@ -200,7 +212,10 @@ export function evidenceLogToMarkdown(log: EvidenceLog): string {
   );
   p('\n## 9. Product implications');
   log.implications.forEach((i) => p(`- ${i}`));
-  p('\n## 10. Scope and next steps');
+  p('\n## 10. Public access and live AI demo');
+  log.access.points.forEach((x) => p(`- ${x}`));
+  p(`- ${log.access.verification}`);
+  p('\n## 11. Scope and next steps');
   log.limitations.forEach((l) => p(`- ${l}`));
   p('\n## Test fixtures (separate track)');
   p(log.simulated);
