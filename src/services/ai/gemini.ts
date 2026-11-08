@@ -55,7 +55,16 @@ export async function geminiChatJson(system: string, user: string, opts?: { maxT
           thinkingConfig: thinkingFor(model),
         },
       });
-      return { rawOutput: res.text ?? '', servedModel: res.modelVersion || model, latencyMs: Date.now() - started, totalTokens: res.usageMetadata?.totalTokenCount };
+      const u = res.usageMetadata;
+      return {
+        rawOutput: res.text ?? '',
+        servedModel: res.modelVersion || model,
+        latencyMs: Date.now() - started,
+        totalTokens: u?.totalTokenCount,
+        inputTokens: u?.promptTokenCount,
+        // Thinking tokens are billed at the output rate.
+        outputTokens: u ? (u.candidatesTokenCount ?? 0) + (u.thoughtsTokenCount ?? 0) : undefined,
+      };
     } catch (err) {
       const e = err as { status?: number; message?: string };
       const status = e.status ?? 0;

@@ -78,7 +78,7 @@ Commit the updated `data/` files; every deployment loads them on start. Human re
 The deployed site is open to everyone with no login, passcode or API key. Every visitor can explore all records, AI results, themes, triangulation, opportunities, validation and the Evidence Log.
 
 - **Live demo:** visitors can re-run Gemini (or Groq) on a fixed set of six genuine records and generate a fresh synthesis. Results are labelled *Live · not saved* and never change the research record.
-- **Server-side limits** in shared Upstash Redis (`src/services/demo/guard.ts`): a shared daily call and token allowance, per-visitor hourly and daily limits (hashed IP and user agent), at most 3 records per run, output-token caps, automated-client filtering, and kill switches (`AI_DEMO_ENABLED`, Redis key `demo:disabled`). Without Redis the demo stays off.
+- **Server-side limits** in shared Upstash Redis (`src/services/demo/guard.ts`): a ₹100/day Gemini spend budget (`AI_DEMO_DAILY_BUDGET_INR`, each call costed from reported tokens at Google's published prices), backstop daily call and token caps, per-visitor hourly and daily limits (hashed IP and user agent), at most 3 records per run, output-token caps, automated-client filtering, and kill switches (`AI_DEMO_ENABLED`, Redis key `demo:disabled`). Without Redis the demo stays off.
 - **Read-only official record:** survey imports, validation reviews and saved AI runs are refused by the server on every Vercel deployment. They run only in the researcher's local workspace and are published by committing `data/`.
 
 ### Environment

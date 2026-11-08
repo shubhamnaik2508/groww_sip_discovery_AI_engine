@@ -35,7 +35,7 @@ export async function runDemoAnalysisAction(input: { recordIds: string[]; provid
   if (typeof provider !== 'string') return { ok: false, error: provider.error };
 
   const h = await headers();
-  const reservation = await reserveDemoCalls(h, ids.length);
+  const reservation = await reserveDemoCalls(h, ids.length, provider);
   if (!reservation.ok) return { ok: false, error: reservation.message };
 
   const records = (await loadDemoRecords()).filter((r) => ids.includes(r.id));
@@ -46,15 +46,15 @@ export async function runDemoAnalysisAction(input: { recordIds: string[]; provid
     try {
       const r = await analyseDemoRecord(record, provider, DEMO_LIMITS.maxOutputTokens);
       results.push(r);
-      await recordDemoUsage(reservation, { kind: 'analysis', provider, model: r.model, tokens: r.totalTokens ?? DEMO_LIMITS.maxOutputTokens * 3, ok: r.status === 'valid' });
+      await recordDemoUsage(reservation, { kind: 'analysis', provider, model: r.model, inputTokens: r.inputTokens, outputTokens: r.outputTokens, totalTokens: r.totalTokens, ok: r.status === 'valid' });
     } catch (e) {
       // Visitors get a plain message; provider details stay in server logs.
       console.error('demo analysis failed', e instanceof Error ? e.message : e);
       const busy = e instanceof Error && /rate limit|429|busy|exhausted/i.test(e.message);
       const message = busy ? 'The AI provider is busy right now. Please try again in a minute.' : 'The AI provider could not complete this record. Please try again later.';
-      results.push({ evidenceId: record.id, provider, model: '', generatedAt: new Date().toISOString(), latencyMs: 0, totalTokens: null, status: 'error', messages: [message], themeName: null, firstPerson: null, codes: [], signals: [], uncertainty: null });
-      // Count a failed request conservatively as if it had used the maximum.
-      await recordDemoUsage(reservation, { kind: 'analysis', provider, model: '', tokens: DEMO_LIMITS.maxOutputTokens * 3, ok: false });
+      results.push({ evidenceId: record.id, provider, model: '', generatedAt: new Date().toISOString(), latencyMs: 0, totalTokens: null, inputTokens: null, outputTokens: null, status: 'error', messages: [message], themeName: null, firstPerson: null, codes: [], signals: [], uncertainty: null });
+      // No usage reported: charged at the worst-case cost (conservative).
+      await recordDemoUsage(reservation, { kind: 'analysis', provider, model: '', ok: false });
     }
   }
   await releaseDemoCalls(reservation, ids.length - attempted);
@@ -76,11 +76,11 @@ export async function runDemoSynthesisAction(input: { provider?: string }): Prom
   const h = await headers();
   const state = await loadResearchState();
   if (state.triangulation.publicSummary.analysedValid === 0) return { ok: false, error: 'There is no analysed public feedback to synthesise yet.' };
-  const reservation = await reserveDemoCalls(h, 1);
+  const reservation = await reserveDemoCalls(h, 1, provider);
   if (!reservation.ok) return { ok: false, error: reservation.message };
   try {
     const row = await generateTriangulationSynthesis(state.triangulation, provider, { maxTokens: 2500 });
-    await recordDemoUsage(reservation, { kind: 'synthesis', provider, model: row.model, tokens: row.totalTokens ?? 12_000, ok: row.validationStatus === 'valid' });
+    await recordDemoUsage(reservation, { kind: 'synthesis', provider, model: row.model, inputTokens: row.inputTokens, outputTokens: row.outputTokens, totalTokens: row.totalTokens, ok: row.validationStatus === 'valid' });
     return {
       ok: true,
       data: {
@@ -96,7 +96,7 @@ export async function runDemoSynthesisAction(input: { provider?: string }): Prom
       },
     };
   } catch {
-    await recordDemoUsage(reservation, { kind: 'synthesis', provider, model: '', tokens: 12_000, ok: false });
+    await recordDemoUsage(reservation, { kind: 'synthesis', provider, model: '', ok: false });
     return { ok: false, error: 'The AI provider could not complete the synthesis. Please try again later; the stored synthesis remains available.' };
   }
 }

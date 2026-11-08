@@ -54,6 +54,8 @@ export interface AIAnalysisResult {
   errorType?: AIErrorCode;
   latencyMs: number;
   totalTokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
 }
 
 export interface AIProvider {

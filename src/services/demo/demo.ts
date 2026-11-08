@@ -41,6 +41,8 @@ export interface LiveDemoResult {
   generatedAt: string;
   latencyMs: number;
   totalTokens: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
   status: 'valid' | 'invalid' | 'guard_failed' | 'error';
   messages: string[];
   themeName: string | null;
@@ -69,6 +71,8 @@ export async function analyseDemoRecord(record: DemoRecord, provider: LiveProvid
     generatedAt: new Date().toISOString(),
     latencyMs: r.latencyMs,
     totalTokens: r.totalTokens ?? null,
+    inputTokens: r.inputTokens ?? null,
+    outputTokens: r.outputTokens ?? null,
     status: r.validationStatus,
     messages: r.validationErrors ?? [],
     themeName: coded.themeName,

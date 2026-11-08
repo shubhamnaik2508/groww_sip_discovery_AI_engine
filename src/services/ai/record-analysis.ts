@@ -17,6 +17,10 @@ export interface ChatJsonResult {
   latencyMs: number;
   /** Total tokens reported by the provider (prompt + output, including thinking). */
   totalTokens?: number;
+  /** Prompt tokens (billed at the input rate). */
+  inputTokens?: number;
+  /** Output + thinking tokens (billed at the output rate). */
+  outputTokens?: number;
 }
 export type ChatJsonFn = (system: string, user: string, opts?: { maxTokens?: number }) => Promise<ChatJsonResult>;
 
@@ -103,7 +107,7 @@ export async function analyzeRecordWith(
   const { prompt, truncated } = buildRecordUserPrompt(record);
   // Quotes are validated against the text the model actually saw.
   const visibleText = record.originalText.slice(0, MAX_INPUT_CHARS);
-  const { rawOutput, servedModel, latencyMs, totalTokens } = await chat(buildRecordSystemPrompt(knownThemes), prompt, { maxTokens: opts?.maxTokens ?? 2200 });
+  const { rawOutput, servedModel, latencyMs, totalTokens, inputTokens, outputTokens } = await chat(buildRecordSystemPrompt(knownThemes), prompt, { maxTokens: opts?.maxTokens ?? 2200 });
   const base = {
     provider: meta.provider,
     model: meta.model,
@@ -113,6 +117,8 @@ export async function analyzeRecordWith(
     rawOutput,
     latencyMs,
     totalTokens,
+    inputTokens,
+    outputTokens,
   };
 
   let parsedJson: unknown;
