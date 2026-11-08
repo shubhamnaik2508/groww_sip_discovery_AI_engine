@@ -35,11 +35,14 @@ export function buildEvidenceLog(state: ResearchState) {
   const sig = (f: string) => t.signals.filter((s) => s.feature === f);
   const unsupported = (f: string) => sig(f).filter((s) => s.status === 'not_measured_public_absent' || s.status === 'weak').map((s) => s.label);
   const supported = (f: string) => sig(f).filter((s) => s.status === 'supported_by_both').map((s) => s.label);
+  const surveyOnly = (f: string) => sig(f).filter((s) => s.status === 'survey_only').map((s) => `${s.label} (survey ${s.survey.pct}%, ${s.public.count} public)`);
+  const conceptLine = (name: string, rank: number, f: string) =>
+    `${name} ranks #${rank}. Supported by both sources: ${supported(f).join(', ') || 'none'}. Survey only, thin in public feedback: ${surveyOnly(f).join('; ') || 'none'}. Assumptions with no supporting evidence: ${unsupported(f).join(', ') || 'none'}.`;
 
   const implications: string[] = [];
   if (t.opportunities[0]) implications.push(`Highest evidence score: “${t.opportunities[0].title}” (score ${t.opportunities[0].score}; survey ${t.opportunities[0].surveyRespondents.count}/${t.opportunities[0].surveyRespondents.denominator}, public ${t.opportunities[0].publicRecords.count}/${t.opportunities[0].publicRecords.denominator}).`);
-  if (lts) implications.push(`Life-to-SIP ranks #${lts.rank}. Supported by both sources: ${supported('life_to_sip').join(', ') || 'none'}. Unsupported assumptions: ${unsupported('life_to_sip').join(', ') || 'none'}.`);
-  if (mp) implications.push(`MARKET PULSE ranks #${mp.rank}. Supported by both sources: ${supported('market_pulse').join(', ') || 'none'}. Unsupported assumptions: ${unsupported('market_pulse').join(', ') || 'none'}.`);
+  if (lts) implications.push(conceptLine('Life-to-SIP', lts.rank, 'life_to_sip'));
+  if (mp) implications.push(conceptLine('MARKET PULSE', mp.rank, 'market_pulse'));
   const gaps = [...byRel('survey_only'), ...byRel('not_measured_in_survey'), ...byRel('divergent')];
   if (gaps.length) implications.push(`Needs interviews before investment: ${gaps.map((g) => `${g.label} (${g.relationship.replace(/_/g, ' ')})`).join('; ')}.`);
 
@@ -175,6 +178,7 @@ export function evidenceLogToMarkdown(log: EvidenceLog): string {
       p(`**${k}**`);
       (items as Array<{ statement: string }>).forEach((i) => p(`- ${i.statement}`));
     }
+    p('**AI view of the existing concepts**');
     p(`- Life-to-SIP: ${s.output.lifeToSipAssessment}`);
     p(`- MARKET PULSE: ${s.output.marketPulseAssessment}`);
   }
@@ -186,7 +190,11 @@ export function evidenceLogToMarkdown(log: EvidenceLog): string {
   p(log.validation.method);
   const v = log.validation.summary;
   p(v.reviewed ? `- Reviewed ${v.reviewed}/${v.sampleSize}: ${v.accurate} accurate, ${v.partial} partially accurate, ${v.inaccurate} inaccurate. Strict agreement ${v.strictAgreementPct}%; lenient ${v.lenientAgreementPct}%. Reviewers: ${v.reviewers.join(', ')}.` : '- Status: PENDING. No human review has been recorded; no agreement figure is reported.');
-  log.validation.corrections.forEach((c) => p(`- Correction (${c.verdict}, ${c.reviewer}): ${c.note ?? ''} ${c.correctedCodes.length ? `→ ${c.correctedCodes.join(', ')}` : ''} ${c.sourceUrl ?? ''}`));
+  log.validation.corrections.forEach((c) =>
+    p(
+      `- Correction by ${c.reviewer} (${c.verdict.replace(/_/g, ' ')}): ${c.note ? `${c.note}. ` : 'no note recorded. '}${c.correctedCodes.length ? `Correct themes: ${c.correctedCodes.join(', ')}. ` : ''}${c.sourceUrl ? `Source: ${c.sourceUrl}` : ''}`,
+    ),
+  );
   p('\n## 9. Product implications');
   log.implications.forEach((i) => p(`- ${i}`));
   p('\n## 10. Limitations');

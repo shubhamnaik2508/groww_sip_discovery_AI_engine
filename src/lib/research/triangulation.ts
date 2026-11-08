@@ -379,7 +379,8 @@ export function computeTriangulation(input: {
       quotes: hits.map((h) => ({ evidenceId: h.evidenceId, quote: h.signals.find((s) => s.signal === d.signal)!.quote, sourceUrl: h.sourceUrl, platform: h.platform })),
     };
     const sPresent = surveyPart.measured && surveyPart.pct >= THRESHOLDS.surveyPresentPct;
-    const pPresent = publicPart.count >= 2;
+    // Same public threshold as the theme matrix, so the concept checks never contradict it.
+    const pPresent = publicPart.pct >= THRESHOLDS.publicPresentPct && publicPart.count >= THRESHOLDS.publicPresentMinRecords;
     const status: SignalRow['status'] = !surveyPart.measured
       ? pPresent
         ? 'not_measured_public_present'
