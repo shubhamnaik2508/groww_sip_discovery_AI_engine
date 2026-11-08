@@ -3,7 +3,7 @@ import { loadResearchState } from '@/services/research/triangulation-service';
 import { computeAgeSummary, computeHeadlineMetrics, computeQuestionStats, computeSegmentComparisons } from '@/lib/research/survey';
 import { SURVEY_CODE_MAPPINGS, codeLabel } from '@/lib/research/codebook';
 import { providerOptions } from '@/services/ai/llm';
-import { needsPasscode } from '@/lib/research/access';
+import { dataChangesAllowed, liveAiAllowed } from '@/lib/research/access';
 import { Accordion } from '@/components/motion';
 import { SurveyImportForm, RunAiButton } from '@/components/research/ActionForms';
 import { Callout, PageHead, SourcePill, Stat, fmtDate } from '@/components/research/ui';
@@ -18,7 +18,7 @@ export default async function PrimaryResearchPage() {
     return (
       <div className="rx-page">
         <PageHead title="Primary research: Google Forms survey" description="No survey dataset is loaded yet. Import the Google Forms CSV export to calculate verified statistics." />
-        <SurveyImportForm needsPasscode={needsPasscode()} />
+        {dataChangesAllowed() ? <SurveyImportForm /> : null}
       </div>
     );
   }
@@ -179,7 +179,7 @@ export default async function PrimaryResearchPage() {
                         );
                       })}
                       <p className="rx-small rx-muted">Only {s.answered} of {s.totalRespondents} respondents answered this optional question, so it cannot support prevalence claims.</p>
-                      {!openText.length ? <RunAiButton kind="survey_text" needsPasscode={needsPasscode()} providers={providerOptions()} label="AI-code open-ended answers" /> : null}
+                      {!openText.length && liveAiAllowed() ? <RunAiButton kind="survey_text" providers={providerOptions()} label="AI-code open-ended answers" /> : null}
                     </div>
                   ) : null}
                 </div>
@@ -262,7 +262,7 @@ export default async function PrimaryResearchPage() {
         </div>
       </section>
 
-      <SurveyImportForm needsPasscode={needsPasscode()} />
+      {dataChangesAllowed() ? <SurveyImportForm /> : null}
       <p className="rx-small rx-muted">
         Next: compare these findings with public feedback in <Link className="rx-link" href="/triangulation">Triangulation</Link>.
       </p>

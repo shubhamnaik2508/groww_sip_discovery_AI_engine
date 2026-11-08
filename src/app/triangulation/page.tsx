@@ -4,7 +4,10 @@ import { TriangulationMatrix } from '@/components/research/TriangulationMatrix';
 import { Callout, PageHead, SourcePill, Stat, fmtDate, platformLabel } from '@/components/research/ui';
 import { RunAiButton } from '@/components/research/ActionForms';
 import { providerOptions } from '@/services/ai/llm';
-import { needsPasscode } from '@/lib/research/access';
+import { liveAiAllowed } from '@/lib/research/access';
+import { headers } from 'next/headers';
+import { getDemoStatus } from '@/services/demo/guard';
+import { LiveSynthesisDemo } from '@/components/research/LiveDemo';
 import { codeLabel } from '@/lib/research/codebook';
 import type { SynthesisOutput } from '@/services/research/ai-research';
 import type { SignalRow } from '@/lib/research/triangulation';
@@ -151,7 +154,9 @@ export default async function TriangulationPage() {
         ) : (
           <Callout tone="warn">No AI synthesis has been generated yet. It needs analysed public feedback and a configured model.</Callout>
         )}
-        <RunAiButton kind="synthesis" needsPasscode={needsPasscode()} providers={providerOptions()} label={synthesis ? 'Regenerate synthesis' : 'Generate synthesis'} />
+        <h3 style={{ fontSize: 15, marginTop: 6 }}>Try it live</h3>
+        <LiveSynthesisDemo providers={providerOptions()} initialStatus={await getDemoStatus(await headers())} />
+        {liveAiAllowed() ? <RunAiButton kind="synthesis" providers={providerOptions()} label={synthesis ? 'Researcher: regenerate and save synthesis' : 'Researcher: generate and save synthesis'} /> : null}
       </section>
 
       <section className="rx-section">

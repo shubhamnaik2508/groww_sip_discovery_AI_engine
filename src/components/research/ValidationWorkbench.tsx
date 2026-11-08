@@ -26,14 +26,13 @@ const VERDICTS = [
   { v: 'inaccurate', label: 'Inaccurate' },
 ] as const;
 
-function ReviewForm({ item, needsPasscode }: { item: ValidationItem; needsPasscode: boolean }) {
+function ReviewForm({ item }: { item: ValidationItem }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [verdict, setVerdict] = useState<(typeof VERDICTS)[number]['v'] | null>(null);
   const [codes, setCodes] = useState<string[]>(item.aiCodes.map((c) => c.code));
   const [note, setNote] = useState('');
   const [reviewer, setReviewer] = useState('');
-  const [passcode, setPasscode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const { wrapRef, inputRef, trigger: shakeTrigger } = useErrorShake();
@@ -50,7 +49,7 @@ function ReviewForm({ item, needsPasscode }: { item: ValidationItem; needsPassco
           return;
         }
         start(async () => {
-          const r = await submitValidationAction({ passcode, recordAnalysisId: item.recordAnalysisId, verdict, correctedCodes: verdict === 'accurate' ? [] : codes, note, reviewer });
+          const r = await submitValidationAction({ recordAnalysisId: item.recordAnalysisId, verdict, correctedCodes: verdict === 'accurate' ? [] : codes, note, reviewer });
           if (!r.ok) {
             setError(r.error);
             shakeTrigger();
@@ -91,12 +90,6 @@ function ReviewForm({ item, needsPasscode }: { item: ValidationItem; needsPassco
             <label htmlFor={`rev-${item.recordAnalysisId}`}>Reviewer name</label>
             <input id={`rev-${item.recordAnalysisId}`} value={reviewer} onChange={(e) => setReviewer(e.target.value)} autoComplete="name" />
           </div>
-          {needsPasscode ? (
-            <div className="rx-field">
-              <label htmlFor={`pc-${item.recordAnalysisId}`}>Research passcode</label>
-              <input id={`pc-${item.recordAnalysisId}`} type="password" value={passcode} onChange={(e) => setPasscode(e.target.value)} autoComplete="off" />
-            </div>
-          ) : null}
           <button className="btn btn-primary" type="submit" disabled={pending}>
             {pending ? 'Saving…' : 'Save review'}
           </button>
@@ -108,7 +101,8 @@ function ReviewForm({ item, needsPasscode }: { item: ValidationItem; needsPassco
   );
 }
 
-export function ValidationWorkbench({ items, needsPasscode }: { items: ValidationItem[]; needsPasscode: boolean }) {
+/** `editable` is true only in the private workspace; the public site shows recorded verdicts read-only. */
+export function ValidationWorkbench({ items, editable }: { items: ValidationItem[]; editable: boolean }) {
   return (
     <div className="rx-panel">
       {items.map((it, i) => (
@@ -179,7 +173,7 @@ export function ValidationWorkbench({ items, needsPasscode }: { items: Validatio
                   {it.latestReview.correctedCodes.length ? ` · corrected themes: ${it.latestReview.correctedCodes.map(codeLabel).join(', ')}` : ''}
                 </p>
               ) : null}
-              <ReviewForm item={it} needsPasscode={needsPasscode} />
+              {editable ? <ReviewForm item={it} /> : null}
             </div>
           </div>
         </Accordion>

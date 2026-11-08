@@ -3,7 +3,7 @@ import { selectValidationSample, summariseValidation, VALIDATION_SAMPLE_SIZE } f
 import { ValidationWorkbench, ValidationItem } from '@/components/research/ValidationWorkbench';
 import { ValidationSheetImport } from '@/components/research/ValidationSheetImport';
 import { Callout, PageHead, Stat } from '@/components/research/ui';
-import { needsPasscode } from '@/lib/research/access';
+import { dataChangesAllowed } from '@/lib/research/access';
 import { codeLabel } from '@/lib/research/codebook';
 import { IconDownload } from '@/components/icons';
 
@@ -97,18 +97,24 @@ export default async function ValidationPage() {
       <section className="rx-section">
         <header>
           <h2>Review sample</h2>
-          <p>Read the original, compare the AI’s themes, and mark it accurate, partially accurate or inaccurate. For anything less than accurate, record the correct themes or what went wrong.</p>
+          <p>
+            {dataChangesAllowed()
+              ? 'Read the original, compare the AI’s themes, and mark it accurate, partially accurate or inaccurate. For anything less than accurate, record the correct themes or what went wrong.'
+              : 'Expand any record to compare the original text, the AI’s classification and the reviewer’s recorded verdict. The validation record is locked so it always reflects the completed review.'}
+          </p>
         </header>
-        <ValidationWorkbench items={items} needsPasscode={needsPasscode()} />
+        <ValidationWorkbench items={items} editable={dataChangesAllowed()} />
       </section>
 
-      <section className="rx-section">
-        <header>
-          <h2>Offline review in a spreadsheet</h2>
-          <p>Download the review sheet, fill in the verdict, corrected_codes (semicolon-separated theme ids), correction_note and reviewer columns, then import it. Rows without a verdict are skipped.</p>
-        </header>
-        <ValidationSheetImport needsPasscode={needsPasscode()} />
-      </section>
+      {dataChangesAllowed() ? (
+        <section className="rx-section">
+          <header>
+            <h2>Offline review in a spreadsheet</h2>
+            <p>Download the review sheet, fill in the verdict, corrected_codes (semicolon-separated theme ids), correction_note and reviewer columns, then import it. Rows without a verdict are skipped.</p>
+          </header>
+          <ValidationSheetImport />
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -23,6 +23,7 @@ export interface GroqJsonResult {
   rawOutput: string;
   servedModel: string;
   latencyMs: number;
+  totalTokens?: number;
 }
 
 export function isReasoningModel(model: string): boolean {
@@ -108,6 +109,7 @@ export async function groqChatJson(
       rawOutput: json?.choices?.[0]?.message?.content ?? '',
       servedModel: json?.model ?? model,
       latencyMs: Date.now() - started,
+      totalTokens: json?.usage?.total_tokens,
     };
   }
 }

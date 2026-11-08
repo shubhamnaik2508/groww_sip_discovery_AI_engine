@@ -53,6 +53,7 @@ export interface AIAnalysisResult {
   validationErrors?: string[];
   errorType?: AIErrorCode;
   latencyMs: number;
+  totalTokens?: number;
 }
 
 export interface AIProvider {

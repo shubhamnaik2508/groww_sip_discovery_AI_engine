@@ -90,16 +90,26 @@ describe('research pipeline (bundled genuine datasets)', () => {
     expect(bad.status).toBe(400);
   });
 
-  it('gates paid AI runs and mutations behind the passcode in production', async () => {
-    const { runPublicAnalysisAction, submitValidationAction } = await import('@/app/research-actions');
-    process.env.VERCEL_ENV = 'production';
-    delete process.env.RESEARCH_ADMIN_PASSCODE;
-    expect((await runPublicAnalysisAction({ passcode: 'x' })).ok).toBe(false);
-    process.env.RESEARCH_ADMIN_PASSCODE = 'correct-horse';
-    const wrong = await submitValidationAction({ passcode: 'nope', recordAnalysisId: 'x', verdict: 'accurate', reviewer: 'Tester' });
-    expect(wrong).toMatchObject({ ok: false, error: 'Incorrect research passcode.' });
-    delete process.env.VERCEL_ENV;
-    delete process.env.RESEARCH_ADMIN_PASSCODE;
+  it('refuses every official write and saved AI run on a public deployment, server-side', async () => {
+    const actions = await import('@/app/research-actions');
+    const { READ_ONLY_MESSAGE } = await import('@/lib/research/access');
+    process.env.VERCEL = '1';
+    process.env.GROQ_API_KEY = 'would-be-spent-if-not-blocked';
+    const before = (await db.select().from(validationReviews).all()).length;
+    const fd = new FormData();
+    fd.set('file', new File(['Timestamp,Q\n1,a'], 'x.csv'));
+    const outcomes = [
+      await actions.runPublicAnalysisAction({ limit: 1 }),
+      await actions.runSynthesisAction({}),
+      await actions.runSurveyTextAnalysisAction({}),
+      await actions.submitValidationAction({ recordAnalysisId: 'x', verdict: 'accurate', reviewer: 'Visitor' }),
+      await actions.importSurveyAction(fd),
+      await actions.importValidationSheetAction(fd),
+    ];
+    for (const o of outcomes) expect(o).toEqual({ ok: false, error: READ_ONLY_MESSAGE });
+    expect((await db.select().from(validationReviews).all()).length).toBe(before);
+    delete process.env.VERCEL;
+    delete process.env.GROQ_API_KEY;
   });
 
   it('requires a correction for non-accurate verdicts and a reviewer name', async () => {

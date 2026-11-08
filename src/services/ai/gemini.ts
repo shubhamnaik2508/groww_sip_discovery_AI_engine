@@ -55,7 +55,7 @@ export async function geminiChatJson(system: string, user: string, opts?: { maxT
           thinkingConfig: thinkingFor(model),
         },
       });
-      return { rawOutput: res.text ?? '', servedModel: res.modelVersion || model, latencyMs: Date.now() - started };
+      return { rawOutput: res.text ?? '', servedModel: res.modelVersion || model, latencyMs: Date.now() - started, totalTokens: res.usageMetadata?.totalTokenCount };
     } catch (err) {
       const e = err as { status?: number; message?: string };
       const status = e.status ?? 0;

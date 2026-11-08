@@ -360,6 +360,8 @@
 }
 .rx-opp:hover { border-color: var(--border-strong); box-shadow: var(--shadow-md); transform: translateY(-1px); }
 .rx-opp[aria-pressed="true"] { border-color: var(--rx-public); box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14); }
+/* Native checkboxes: undo the legacy global text-input styling. */
+.app-main input[type="checkbox"] { width: 16px; height: 16px; min-width: 0; padding: 0; margin: 0; border: 0; box-shadow: none; accent-color: var(--rx-public); flex: none; }
 .rx-opp:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .rx-chain { display: flex; flex-direction: column; gap: 0; }
 .rx-chain-step { position: relative; padding: 0 0 18px 28px; }

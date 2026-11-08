@@ -155,7 +155,10 @@ export function guardSynthesis(output: SynthesisOutput, input: ReturnType<typeof
   return errors;
 }
 
-export async function runTriangulationSynthesis(t: TriangulationResult, requestedProvider?: LiveProvider | null): Promise<typeof aiSyntheses.$inferSelect> {
+export type SynthesisRow = typeof aiSyntheses.$inferSelect & { totalTokens?: number };
+
+/** Generates a guarded synthesis without saving it (used by the public demo and by the stored run). */
+export async function generateTriangulationSynthesis(t: TriangulationResult, requestedProvider?: LiveProvider | null, opts?: { maxTokens?: number }): Promise<SynthesisRow> {
   const chosen = resolveProvider(requestedProvider); // throws a clear error when no key is configured
   const input = buildSynthesisInput(t);
   const inputJson = JSON.stringify(input);
@@ -170,7 +173,7 @@ Answer the research questions using ONLY the numbers and quotes provided. Rules:
 - Life-to-SIP and MARKET PULSE are existing concepts under test. Do not assume they are right; say plainly where evidence is weak or points elsewhere.
 - These are interpretations (AI inference), not facts.
 Return JSON with keys: convergentProblems, surveyProminentPubliclyRare, publicEmergentNotInSurvey, contradictions, strongestFindings, needsMoreResearch, newOpportunities (each an array of {"statement","codes":[],"evidenceIds":[]}), lifeToSipAssessment (string), marketPulseAssessment (string), caveats (string array).`;
-  const { rawOutput, servedModel, latencyMs, provider } = await chatJson(system, `MATRIX:\n${inputJson}`, { maxTokens: 3000, provider: chosen });
+  const { rawOutput, servedModel, latencyMs, provider, totalTokens } = await chatJson(system, `MATRIX:\n${inputJson}`, { maxTokens: opts?.maxTokens ?? 3000, provider: chosen });
   let parsed: SynthesisOutput | null = null;
   let status = 'valid';
   let errors: string[] = [];
@@ -203,6 +206,14 @@ Return JSON with keys: convergentProblems, surveyProminentPubliclyRare, publicEm
     latencyMs,
     createdAt: new Date().toISOString(),
   };
+  return { ...row, totalTokens };
+}
+
+/** Generates and stores a synthesis as part of the official research record (private workspace only). */
+export async function runTriangulationSynthesis(t: TriangulationResult, requestedProvider?: LiveProvider | null): Promise<typeof aiSyntheses.$inferSelect> {
+  const generated = await generateTriangulationSynthesis(t, requestedProvider);
+  const row: typeof aiSyntheses.$inferSelect = { ...generated };
+  delete (row as SynthesisRow).totalTokens;
   await db.insert(aiSyntheses).values(row);
   return row;
 }

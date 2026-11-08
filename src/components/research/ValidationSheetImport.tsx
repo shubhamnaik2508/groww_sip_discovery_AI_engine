@@ -6,7 +6,7 @@ import { importValidationSheetAction } from '@/app/research-actions';
 import { SuccessCheck } from '@/components/motion';
 import { IconUpload } from '@/components/icons';
 
-export function ValidationSheetImport({ needsPasscode }: { needsPasscode: boolean }) {
+export function ValidationSheetImport() {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -29,12 +29,6 @@ export function ValidationSheetImport({ needsPasscode }: { needsPasscode: boolea
         <label htmlFor="rx-sheet">Completed review sheet (CSV)</label>
         <input id="rx-sheet" name="file" type="file" accept=".csv,text/csv" required />
       </div>
-      {needsPasscode ? (
-        <div className="rx-field">
-          <label htmlFor="rx-sheet-pc">Research passcode</label>
-          <input id="rx-sheet-pc" name="passcode" type="password" autoComplete="off" />
-        </div>
-      ) : null}
       <button className="btn btn-secondary" type="submit" disabled={pending} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
         <IconUpload size={15} /> {pending ? 'Importing…' : 'Import reviews'}
       </button>

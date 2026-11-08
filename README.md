@@ -74,8 +74,15 @@ npx tsx --env-file=.env.local scripts/run-research-analysis.ts
 ```
 Commit the updated `data/` files; every deployment loads them on start. Human reviews can be exported from `/validation` and committed as `data/validation/validation-reviews.json`.
 
+### Public access and the live AI demo
+The deployed site is open to everyone with no login, passcode or API key. Every visitor can explore all records, AI results, themes, triangulation, opportunities, validation and the Evidence Log.
+
+- **Live demo:** visitors can re-run Gemini (or Groq) on a fixed set of six genuine records and generate a fresh synthesis. Results are labelled *Live · not saved* and never change the research record.
+- **Server-side limits** in shared Upstash Redis (`src/services/demo/guard.ts`): a shared daily call and token allowance, per-visitor hourly and daily limits (hashed IP and user agent), at most 3 records per run, output-token caps, automated-client filtering, and kill switches (`AI_DEMO_ENABLED`, Redis key `demo:disabled`). Without Redis the demo stays off.
+- **Read-only official record:** survey imports, validation reviews and saved AI runs are refused by the server on every Vercel deployment. They run only in the researcher's local workspace and are published by committing `data/`.
+
 ### Environment
-See `.env.example`: `GROQ_API_KEY` (live AI), `RESEARCH_ADMIN_PASSCODE` (required in production for AI runs, imports and reviews), optional `DATABASE_URL`.
+See `.env.example`: `GEMINI_API_KEY` (preferred) and/or `GROQ_API_KEY`, `AI_DEMO_ENABLED`, the Upstash `KV_REST_API_*` variables, and optional `DATABASE_URL`.
 
 ### Design and motion
 The research theme (`src/app/research.css`) follows the Impeccable “Operate” guidance. Motion uses Transitions.dev snippets pasted verbatim (`src/app/transitions*.css`, wired in `src/components/motion.tsx`): accordion, panel reveal, sliding tabs, number subtle change, text-state swap, menu dropdown, success check and error shake, each with its reduced-motion guard. The skills live in `.claude/skills/`.

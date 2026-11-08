@@ -5,8 +5,12 @@ import { AnalysisRecords, AnalysisRecordView } from '@/components/research/Analy
 import { RunAnalysisPanel } from '@/components/research/ActionForms';
 import { Callout, PageHead, SourcePill, Stat, fmtDate, platformLabel } from '@/components/research/ui';
 import { RECORD_PROMPT_VERSION } from '@/services/ai/record-analysis';
-import { llmConfigured, llmLabel, providerOptions } from '@/services/ai/llm';
-import { needsPasscode } from '@/lib/research/access';
+import { providerOptions } from '@/services/ai/llm';
+import { liveAiAllowed } from '@/lib/research/access';
+import { headers } from 'next/headers';
+import { getDemoStatus } from '@/services/demo/guard';
+import { DEMO_RECORD_IDS } from '@/services/demo/demo';
+import { LiveAnalysisDemo, DemoRecordView } from '@/components/research/LiveDemo';
 import { IconDownload } from '@/components/icons';
 
 export const dynamic = 'force-dynamic';
@@ -43,12 +47,22 @@ export default async function AnalysisPage() {
       : null,
   }));
   const runs = state.runs.filter((r) => r.totalRecords > 0);
+  const demoRecords: DemoRecordView[] = DEMO_RECORD_IDS.map((id) => state.publicRecords.find((r) => r.id === id))
+    .filter((r): r is NonNullable<typeof r> => Boolean(r))
+    .map((r) => ({
+      id: r.id,
+      platform: r.platform,
+      sourceUrl: r.sourceUrl,
+      originalText: r.originalText,
+      stored: r.analysis ? { model: r.analysis.model, analysedAt: r.analysis.analysedAt, codes: r.analysis.coded.codes, themeName: r.analysis.coded.themeName, status: r.analysis.status } : null,
+    }));
+  const demoStatus = await getDemoStatus(await headers());
 
   return (
     <div className="rx-page">
       <PageHead
         title="AI analysis of public feedback"
-        description="Every public record is sent to a language model with a fixed codebook. The output is validated against a schema, and every quote it cites must appear verbatim in the original text before it can count toward a theme. Failures are kept and shown, not hidden."
+        description="Every public record was analysed by a language model with a fixed codebook. Each output is validated against a schema, and every quote it cites must appear verbatim in the original text before it can count toward a theme. The results below are the stored official run; you can also try the analysis live."
         actions={
           <a className="btn btn-secondary" href="/api/research/export?type=snapshot" style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
             <IconDownload size={15} /> Stored AI outputs (JSON)
@@ -59,17 +73,19 @@ export default async function AnalysisPage() {
       <div className="rx-stat-strip">
         <Stat label="Public records stored" value={ps.totalRecords} note={Object.entries(ps.platforms).map(([p, n]) => `${platformLabel(p)} ${n}`).join(' · ')} />
         <Stat label="Valid AI analyses" value={ps.analysedValid} unit={`/ ${ps.eligibleRecords}`} note="Passed schema and grounding checks" />
-        <Stat label="Failed checks" value={ps.analysedFailed} note="Kept with the reason; not counted" />
+        <Stat label="Held back by guard" value={ps.analysedFailed} note="Kept with the reason; not counted" />
         <Stat label="First-person accounts" value={ps.firstPersonValid} unit={`/ ${ps.analysedValid}`} note="Author describes their own SIP" />
-        <Stat label="Model" value={<span style={{ fontSize: 15 }}>{ps.models.join(', ') || (llmConfigured() ? llmLabel() : 'none yet')}</span>} note={`Prompt ${RECORD_PROMPT_VERSION}`} />
+        <Stat label="Model" value={<span style={{ fontSize: 15 }}>{ps.models.join(', ') || 'none yet'}</span>} note={`Prompt ${RECORD_PROMPT_VERSION}`} />
       </div>
 
       {ps.analysedValid === 0 ? (
         <Callout tone="warn">No stored AI analyses are available on this deployment yet. Nothing on this page is simulated; the counts will fill in as real runs complete.</Callout>
       ) : null}
 
+      <LiveAnalysisDemo records={demoRecords} providers={providerOptions()} initialStatus={demoStatus} />
+
       <div className="rx-grid rx-grid-2">
-        <RunAnalysisPanel needsPasscode={needsPasscode()} providers={providerOptions()} pendingCount={ps.notAnalysed + ps.analysedFailed} />
+        {liveAiAllowed() ? <RunAnalysisPanel providers={providerOptions()} pendingCount={ps.notAnalysed + ps.analysedFailed} /> : <StoredRunNote run={runs[0]} />}
         <div className="rx-panel rx-panel-pad" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <h3 style={{ fontSize: 15 }}>How each record is processed</h3>
           <ol className="rx-small" style={{ paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4, lineHeight: 1.5 }}>
@@ -129,6 +145,32 @@ export default async function AnalysisPage() {
         </header>
         <AnalysisRecords records={records} />
       </section>
+    </div>
+  );
+}
+
+/** Public view: identifies the stored official run so it is never mistaken for live processing. */
+function StoredRunNote({ run }: { run?: { id: string; provider: string; model: string; startedAt: string; totalRecords: number; successfulRecords: number; failedRecords: number; promptVersion: string } }) {
+  return (
+    <div className="rx-panel rx-panel-pad" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <h3 style={{ fontSize: 15 }}>Stored official run</h3>
+      {run ? (
+        <dl className="rx-kv">
+          <dt>Run</dt>
+          <dd className="rx-mono">{run.id.slice(0, 8)}</dd>
+          <dt>Model</dt>
+          <dd>{run.provider} · {run.model}</dd>
+          <dt>Prompt</dt>
+          <dd>{run.promptVersion}</dd>
+          <dt>Generated</dt>
+          <dd>{fmtDate(run.startedAt)}</dd>
+          <dt>Outcome</dt>
+          <dd>{run.successfulRecords} passed quality checks · {run.failedRecords} held back · {run.totalRecords} records</dd>
+        </dl>
+      ) : (
+        <p className="rx-small rx-muted">No stored run yet.</p>
+      )}
+      <p className="rx-small rx-muted">These results were generated once and published with the research. Live demo results above are separate and are not saved.</p>
     </div>
   );
 }
