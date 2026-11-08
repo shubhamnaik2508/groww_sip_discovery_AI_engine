@@ -85,7 +85,7 @@ The deployed site is open to everyone with no login, passcode or API key. Every 
 See `.env.example`: `GEMINI_API_KEY` (preferred) and/or `GROQ_API_KEY`, `AI_DEMO_ENABLED`, the Upstash `KV_REST_API_*` variables, and optional `DATABASE_URL`.
 
 ### Design and motion
-The research theme (`src/app/research.css`) follows the Impeccable “Operate” guidance. Motion uses Transitions.dev snippets pasted verbatim (`src/app/transitions*.css`, wired in `src/components/motion.tsx`): accordion, panel reveal, sliding tabs, number subtle change, text-state swap, menu dropdown, success check and error shake, each with its reduced-motion guard. The skills live in `.claude/skills/`.
+The research theme (`src/app/research.css`) follows the Impeccable “Operate” guidance. Navigation is a vertical sidebar dock (`src/components/AppShell.tsx`): the 11-step workflow scrolls independently, the dock collapses to an icon rail on desktop (remembered per browser, applied before first paint) and becomes a slide-in drawer on phones. Motion uses Transitions.dev snippets pasted verbatim (`src/app/transitions*.css`, wired in `src/components/motion.tsx`): card resize (the dock), panel reveal (trace and phone drawer timing), accordion, sliding tabs, number subtle change, text-state swap, success check and error shake, each with its reduced-motion guard. The skills live in `.claude/skills/`.
 
 ---
 

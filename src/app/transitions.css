@@ -339,3 +339,15 @@
 @media (prefers-reduced-motion: reduce) {
   .t-dropdown { transition: none !important; }
 }
+
+/* ---- 01-card-resize.md ---- */
+.t-resize {
+  transition:
+    width  var(--resize-dur) var(--resize-ease),
+    height var(--resize-dur) var(--resize-ease);
+  will-change: width, height;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-resize { transition: none !important; }
+}

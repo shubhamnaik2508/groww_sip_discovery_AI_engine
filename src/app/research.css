@@ -171,50 +171,6 @@
 :root[data-theme="research"] textarea,
 :root[data-theme="research"] select { background: #fff; color: var(--text-primary); border-color: var(--border-strong); }
 
-/* ---------------------------------------------------------------- Nav */
-.rx-nav {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  padding: 0 0 2px;
-  margin: 0 -4px;
-}
-.rx-nav::-webkit-scrollbar { display: none; }
-.rx-nav-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  white-space: nowrap;
-  padding: 8px 10px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #b5d0db;
-  transition: background-color var(--duration-quick, 150ms) var(--ease-out, ease-out), color var(--duration-quick, 150ms) var(--ease-out, ease-out);
-}
-.rx-nav-link:hover { background: rgba(255, 255, 255, 0.07); color: #f2f8fa; }
-.rx-nav-link[aria-current="page"] { background: rgba(20, 184, 166, 0.16); color: #ffffff; box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.35); }
-.rx-nav-step { font-family: var(--font-mono); font-size: 10.5px; font-variant-numeric: tabular-nums; color: #7fb9b1; }
-.rx-nav-link[aria-current="page"] .rx-nav-step { color: #8be3d6; }
-.rx-nav-sep { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.14); margin: 0 6px; flex: none; }
-.rx-nav-more { position: relative; }
-.rx-nav-menu {
-  position: fixed;
-  z-index: 60;
-  min-width: 220px;
-  padding: 6px;
-  border-radius: 12px;
-  background: rgba(6, 34, 50, 0.97);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
-}
-.rx-nav-menu a { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 8px; color: #d6e8ee; font-size: 13px; }
-.rx-nav-menu a:hover, .rx-nav-menu a[aria-current="page"] { background: rgba(255, 255, 255, 0.08); color: #fff; }
-
 /* ------------------------------------------------------- Page scaffold */
 .rx-page { display: flex; flex-direction: column; gap: 28px; }
 .rx-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
@@ -413,5 +369,161 @@
 .rx-kv dd { margin: 0; color: var(--text-primary); }
 
 @media print {
-  .app-header, .app-footer, .rx-noprint { display: none !important; }
+  .app-header, .app-footer, .rx-noprint, .rx-sidebar, .rx-topbar, .rx-backdrop { display: none !important; }
+  .rx-shell { display: block; }
+}
+
+/* ==========================================================================
+   App shell: vertical sidebar dock + slim top bar (Impeccable "Operate" mode:
+   a standard product navigation pattern, drawn icons, visible focus, state-only motion).
+   Motion: transitions.dev card-resize (.t-resize) tweens the dock width; the phone
+   drawer uses the panel-reveal timing tokens; labels fade with the quick text-swap
+   timing; controls press slightly on click (taste-skill quiet micro-interaction).
+   Everything is disabled under prefers-reduced-motion.
+   ========================================================================== */
+:root { --dock-w: 248px; --dock-rail: 72px; }
+:root[data-dock="collapsed"] { --dock-w: var(--dock-rail); }
+
+.rx-shell { display: grid; grid-template-columns: auto minmax(0, 1fr); min-height: 100vh; }
+.rx-content { display: flex; flex-direction: column; min-width: 0; min-height: 100vh; }
+
+.rx-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: var(--dock-w);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: linear-gradient(180deg, #04202f 0%, #062b3f 55%, #07324a 100%);
+  border-right: 1px solid rgba(125, 211, 200, 0.16);
+  color: #d6e8ee;
+  z-index: 60;
+}
+
+/* Brand */
+.rx-side-brand { display: flex; align-items: center; gap: 12px; padding: 18px; min-height: 72px; color: #f2f8fa; }
+.rx-sidebar .brand-logo {
+  flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center;
+  font-weight: 700; color: #fff; background: linear-gradient(140deg, #14b8a6, #0e7490); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+/* Fixed text width so the brand wraps to two lines without reflowing during the shutter. */
+.rx-side-brand .rx-side-text { flex: none; width: 164px; white-space: normal; }
+.rx-side-brand-title { display: block; font-size: 13.5px; font-weight: 650; line-height: 1.25; text-wrap: balance; }
+.rx-side-brand-tag { display: block; font-size: 10.5px; color: #8be3d6; margin-top: 2px; }
+
+/* Labels fade as the dock shutters down */
+.rx-side-text {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 1;
+  transition: opacity var(--duration-quick, 150ms) var(--ease-in-out, ease-in-out);
+}
+:root[data-dock="collapsed"] .rx-sidebar .rx-side-text { opacity: 0; pointer-events: none; }
+
+/* Independently scrolling navigation */
+.rx-side-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 4px 12px 12px; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.18) transparent; }
+.rx-side-heading { font-size: 11px; font-weight: 600; color: #8fb3bf; padding: 14px 12px 6px; height: 34px; }
+.rx-side-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.rx-side-link {
+  display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 10px; font-size: 13.5px; font-weight: 500;
+  color: #b8d3dd; white-space: nowrap;
+  transition:
+    background-color var(--duration-quick, 150ms) var(--ease-out, ease-out),
+    color var(--duration-quick, 150ms) var(--ease-out, ease-out),
+    transform var(--duration-quick, 150ms) var(--ease-out, ease-out);
+}
+.rx-side-link svg { flex: none; }
+.rx-side-link:hover { background: rgba(255, 255, 255, 0.07); color: #f2f8fa; }
+.rx-side-link:active, .rx-dock-toggle:active, .rx-menu-button:active { transform: scale(0.98); }
+.rx-side-link[aria-current="page"] { background: rgba(20, 184, 166, 0.18); color: #fff; box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.38); }
+.rx-side-link:focus-visible, .rx-dock-toggle:focus-visible, .rx-side-brand:focus-visible, .rx-drawer-close:focus-visible { outline: 2px solid #5eead4; outline-offset: 2px; }
+.rx-side-step { font-family: var(--font-mono); font-size: 10.5px; font-variant-numeric: tabular-nums; color: #7fb9b1; margin-right: 8px; }
+.rx-side-link[aria-current="page"] .rx-side-step { color: #8be3d6; }
+
+/* Dock toggle */
+.rx-dock-toggle {
+  display: flex; align-items: center; gap: 12px; margin: 8px 12px 14px; padding: 9px 12px; border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.04); color: #b8d3dd;
+  font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap; overflow: hidden;
+  transition: background-color var(--duration-quick, 150ms) ease-out, transform var(--duration-quick, 150ms) ease-out;
+}
+.rx-dock-toggle:hover { background: rgba(255, 255, 255, 0.09); color: #fff; }
+.rx-dock-chevron { display: inline-flex; flex: none; transition: transform var(--duration-fast, 250ms) var(--ease-smooth-out, ease-out); }
+:root[data-dock="collapsed"] .rx-dock-chevron { transform: rotate(180deg); }
+:root[data-dock="collapsed"] .rx-side-link,
+:root[data-dock="collapsed"] .rx-dock-toggle { gap: 0; }
+:root[data-dock="collapsed"] .rx-sidebar .rx-side-step { display: none; }
+
+.rx-drawer-close { display: none; }
+.rx-backdrop { display: none; }
+
+/* Top bar: subtle glass over the content column */
+.rx-topbar {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; gap: 12px; padding: 10px 24px; min-height: 56px;
+  background: color-mix(in srgb, var(--bg-canvas) 80%, transparent);
+  -webkit-backdrop-filter: saturate(140%) blur(12px);
+  backdrop-filter: saturate(140%) blur(12px);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.rx-topbar-title { display: flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 600; color: var(--text-primary); min-width: 0; }
+.rx-topbar-title .rx-side-step { color: var(--text-muted); }
+.rx-topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.rx-topbar .brand-subtitle { color: var(--text-muted); }
+.rx-menu-button { display: none; }
+
+/* Phones and small tablets: the dock becomes a slide-in drawer */
+@media (max-width: 900px) {
+  .rx-shell { grid-template-columns: minmax(0, 1fr); }
+  .rx-sidebar {
+    position: fixed; inset: 0 auto 0 0; height: 100dvh; width: min(84vw, 300px);
+    transform: translateX(-100%);
+    transition:
+      transform var(--panel-close-dur, 350ms) var(--panel-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+      box-shadow var(--panel-close-dur, 350ms) var(--panel-ease, cubic-bezier(0.22, 1, 0.36, 1));
+  }
+  .rx-shell[data-drawer="open"] .rx-sidebar {
+    transform: translateX(0);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.35);
+    transition:
+      transform var(--panel-open-dur, 400ms) var(--panel-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+      box-shadow var(--panel-open-dur, 400ms) var(--panel-ease, cubic-bezier(0.22, 1, 0.36, 1));
+  }
+  /* The drawer always shows labels; the collapsed rail is a desktop preference. */
+  :root[data-dock="collapsed"] .rx-sidebar .rx-side-text { opacity: 1; pointer-events: auto; }
+  :root[data-dock="collapsed"] .rx-side-link { gap: 12px; }
+  :root[data-dock="collapsed"] .rx-sidebar .rx-side-step { display: inline; }
+  .rx-dock-toggle { display: none; }
+  .rx-drawer-close {
+    display: inline-flex; position: absolute; top: 18px; right: 12px; padding: 6px; border-radius: 8px;
+    border: 0; background: rgba(255, 255, 255, 0.06); color: #d6e8ee; cursor: pointer;
+  }
+  .rx-side-brand { padding-right: 52px; }
+  .rx-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 55; background: rgba(4, 22, 34, 0.5);
+    opacity: 0; pointer-events: none;
+    transition: opacity var(--panel-close-dur, 350ms) var(--panel-ease, ease-out);
+  }
+  .rx-shell[data-drawer="open"] .rx-backdrop { opacity: 1; pointer-events: auto; transition-duration: var(--panel-open-dur, 400ms); }
+  .rx-menu-button {
+    display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 10px;
+    border: 1px solid var(--border-subtle); background: var(--bg-surface); color: var(--text-primary); cursor: pointer; flex: none;
+    transition: transform var(--duration-quick, 150ms) ease-out;
+  }
+  .rx-menu-button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+  .rx-topbar { padding: 10px 16px; }
+}
+@media (max-width: 560px) {
+  /* Phones: menu, page title and AI status only; the theme choice stays on larger screens. */
+  .rx-topbar-actions label { display: none !important; } /* ThemeSwitcher sets display inline */
+  .rx-topbar-actions .badge { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rx-topbar-title { font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rx-sidebar, .rx-side-text, .rx-backdrop, .rx-dock-chevron, .rx-side-link, .rx-dock-toggle, .rx-menu-button { transition: none !important; }
+  .rx-side-link:active, .rx-dock-toggle:active, .rx-menu-button:active { transform: none; }
 }

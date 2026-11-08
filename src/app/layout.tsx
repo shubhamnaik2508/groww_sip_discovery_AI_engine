@@ -3,10 +3,11 @@ import './globals.css';
 import './transitions-root.css';
 import './transitions.css';
 import './research.css';
-import { Navbar } from '@/components/Navbar';
+import { AppShell } from '@/components/AppShell';
+import { DOCK_BOOT_SCRIPT } from '@/lib/dock';
 import { ThemeSwitcher } from '@/components/ThemeSwitcher';
-import Link from 'next/link';
 import { AiStatusBadge } from '@/components/AiStatusBadge';
+import { IconAlert } from '@/components/icons';
 
 export const metadata: Metadata = {
   title: 'Groww SIP Discovery Engine | NextLeap Research',
@@ -20,39 +21,20 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: DOCK_BOOT_SCRIPT }} />
+      </head>
       <body>
-        <div className="app-container">
-          <header className="app-header">
-            <div className="header-top">
-              <div className="header-brand">
-                <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div className="brand-logo" aria-hidden="true">G</div>
-                  <div>
-                    <div className="brand-title">
-                      Groww SIP Discovery Engine
-                      <span className="brand-tag">NextLeap research prototype</span>
-                    </div>
-                    <div className="brand-subtitle" style={{ fontSize: '11.5px' }}>
-                      Why first-time investors start, pause, reduce or stop SIPs — survey + public feedback, triangulated
-                    </div>
-                  </div>
-                </Link>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
-                <AiStatusBadge />
-                <ThemeSwitcher />
-              </div>
-            </div>
-            <Navbar />
-          </header>
-
+        <AppShell badge={<AiStatusBadge />} theme={<ThemeSwitcher />}>
           <main className="app-main">
             {children}
           </main>
 
           <footer className="app-footer">
             <div className="disclaimer-banner">
-              <span style={{ fontSize: '16px' }} aria-hidden="true">⚠️</span>
+              <span style={{ color: 'var(--amber-500)', display: 'inline-flex', marginTop: 2 }}>
+                <IconAlert size={16} />
+              </span>
               <div>
                 <strong>Independent Academic & Product Discovery Research Tool</strong>
                 <p style={{ marginTop: '2px', color: 'var(--text-secondary)' }}>
@@ -65,7 +47,7 @@ export default function RootLayout({
               <span>Active SIP definition: At least 1 successful instalment in past 30 days</span>
             </div>
           </footer>
-        </div>
+        </AppShell>
       </body>
     </html>
   );
