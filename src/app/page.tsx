@@ -12,6 +12,8 @@ import {
 } from '@/db/schema';
 import { desc } from 'drizzle-orm';
 import { SeedButton } from '@/components/SeedButton';
+import { ResearchOverview } from '@/components/research/ResearchOverview';
+import { ensureResearchData } from '@/services/research/datasets';
 import { EvidenceService } from '@/services/evidence';
 import { OpportunityService } from '@/services/opportunity';
 import { classifyEvidenceProvenance, deduplicateEligibleEvidence, isGenuineResearchEvidence, isSyntheticFixture } from '@/lib/evidenceEligibility';
@@ -19,7 +21,7 @@ import { classifyEvidenceProvenance, deduplicateEligibleEvidence, isGenuineResea
 export const dynamic = 'force-dynamic';
 
 export default async function IntelligenceOverviewPage() {
-  await initializeDatabase();
+  await ensureResearchData();
 
   const allRecords = await db.select().from(evidenceRecords).all();
   const eligibleRecords = deduplicateEligibleEvidence(allRecords);
@@ -72,32 +74,18 @@ export default async function IntelligenceOverviewPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-      {/* Top Banner / Hero */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            <span className="badge badge-emerald">Discovery Engine Active</span>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Evidence-First Problem Space Formulation</span>
-          </div>
-          <h1>Intelligence Overview</h1>
-          <p style={{ color: 'var(--text-secondary)', maxWidth: '720px', marginTop: '6px', fontSize: '14px' }}>
-            Exploring reported investor experiences that may relate to continued SIP use. Evidence summaries describe the available sample and do not establish root causes or cohort retention.
-          </p>
-        </div>
+      <ResearchOverview />
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <SeedButton hasData={allRecords.length > 0} />
-          <Link href="/evidence" className="btn btn-primary">
-            + Ingest New Feedback
-          </Link>
-        </div>
+      <div className="rx-small rx-muted" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span>Software test fixtures (synthetic, excluded from research counts):</span>
+        <SeedButton hasData={allRecords.length > 0} />
       </div>
 
       {/* Business Objective & Metric Definition Card */}
       <div className="card" style={{ borderColor: 'var(--emerald-border)', background: 'linear-gradient(180deg, var(--emerald-glow) 0%, var(--bg-surface) 100%)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
           <span style={{ color: 'var(--emerald-400)', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            🎯 NextLeap Fellowship Business Target
+            NextLeap business target
           </span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>

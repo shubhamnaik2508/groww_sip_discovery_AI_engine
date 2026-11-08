@@ -1,5 +1,6 @@
 import { AIProvider, AnalysisInputRecord, KnownThemePromptItem, AIAnalysisResult } from './provider';
 import { GeminiProvider } from './gemini';
+import { GroqProvider } from './groq';
 import { FakeAIProvider } from './fake';
 import { db, initializeDatabase } from '@/db';
 import {
@@ -14,10 +15,14 @@ import { eq, sql, inArray } from 'drizzle-orm';
 import crypto from 'crypto';
 
 export function getAIProvider(preferredName?: string): AIProvider {
-  const providerType = preferredName || process.env.AI_PROVIDER || 'gemini';
+  // Default: Groq when its key is configured, otherwise the original Gemini provider.
+  const providerType = preferredName || process.env.AI_PROVIDER || (process.env.GROQ_API_KEY ? 'groq' : 'gemini');
 
   if (providerType === 'fake') {
     return new FakeAIProvider();
+  }
+  if (providerType === 'groq') {
+    return new GroqProvider();
   }
 
   // Default to GeminiProvider

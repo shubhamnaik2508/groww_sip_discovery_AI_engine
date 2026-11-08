@@ -2,133 +2,63 @@
 
 import React, { useEffect, useState } from 'react';
 
-export type ThemeMode = 'cool' | 'warm' | 'warm-paper';
+/** 'research' is the default (no data-theme attribute); the legacy themes stay selectable. */
+export type ThemeMode = 'research' | 'cool' | 'warm' | 'warm-paper';
 
-interface ThemeOption {
-  id: ThemeMode;
-  label: string;
-  shortLabel: string;
-  icon: string;
-  description: string;
+const THEMES: Array<{ id: ThemeMode; label: string }> = [
+  { id: 'research', label: 'Research (light)' },
+  { id: 'cool', label: 'Ocean Slate (dark)' },
+  { id: 'warm', label: 'Warm Espresso (dark)' },
+  { id: 'warm-paper', label: 'Warm Paper' },
+];
+const STORAGE_KEY = 'groww_sip_theme_v2';
+
+function applyTheme(theme: ThemeMode) {
+  if (theme === 'research') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', theme);
+  try {
+    localStorage.setItem(STORAGE_KEY, theme);
+  } catch {
+    /* Theme selection still works without storage. */
+  }
 }
 
-const THEMES: ThemeOption[] = [
-  {
-    id: 'cool',
-    label: 'Ocean Slate',
-    shortLabel: 'Ocean Slate',
-    icon: '🌊',
-    description: 'Deep navy canvas, slate cards, off-white text, and ocean blue accents',
-  },
-  {
-    id: 'warm',
-    label: 'Warm Espresso',
-    shortLabel: 'Warm Dark',
-    icon: '☕',
-    description: 'Warm roasted espresso & honey amber accents',
-  },
-  {
-    id: 'warm-paper',
-    label: 'Warm Paper Glassmorphism',
-    shortLabel: 'Warm Paper Glass',
-    icon: '📜',
-    description: 'Warm linen parchment with translucent frosted glassmorphism',
-  },
-];
-
 export function ThemeSwitcher() {
-  const [currentTheme, setCurrentTheme] = useState<ThemeMode>('cool');
-  const [mounted, setMounted] = useState(false);
+  const [theme, setTheme] = useState<ThemeMode>('research');
 
   useEffect(() => {
-    setMounted(true);
-    let stored: ThemeMode | null = null;
-    try { stored = localStorage.getItem('groww_sip_theme') as ThemeMode | null; } catch { /* Use default when storage is unavailable. */ }
-    if (stored && (stored === 'cool' || stored === 'warm' || stored === 'warm-paper')) {
-      setCurrentTheme(stored);
-      applyTheme(stored);
-    } else {
-      applyTheme('cool');
+    let stored: string | null = null;
+    try {
+      stored = localStorage.getItem(STORAGE_KEY);
+    } catch {
+      /* default */
+    }
+    if (stored && THEMES.some((t) => t.id === stored)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- restore the saved theme from browser storage after hydration
+      setTheme(stored as ThemeMode);
+      applyTheme(stored as ThemeMode);
     }
   }, []);
 
-  const applyTheme = (theme: ThemeMode) => {
-    if (theme === 'cool') {
-      document.documentElement.removeAttribute('data-theme');
-    } else {
-      document.documentElement.setAttribute('data-theme', theme);
-    }
-    try { localStorage.setItem('groww_sip_theme', theme); } catch { /* Theme selection still works without storage. */ }
-  };
-
-  const handleSelect = (theme: ThemeMode) => {
-    setCurrentTheme(theme);
-    applyTheme(theme);
-  };
-
-  if (!mounted) {
-    return (
-      <div
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          height: '28px',
-          width: '180px',
-          background: 'var(--bg-surface)',
-          borderRadius: 'var(--radius-full)',
-          border: '1px solid var(--border-subtle)',
-        }}
-      />
-    );
-  }
-
   return (
-    <div
-      role="radiogroup"
-      aria-label="Color Palette Switcher"
-      style={{
-        display: 'inline-flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        padding: '2px',
-        background: 'var(--bg-surface)',
-        borderRadius: 'var(--radius-full)',
-        border: '1px solid var(--border-subtle)',
-        boxShadow: 'var(--shadow-sm)',
-        gap: '2px',
-      }}
-    >
-      {THEMES.map((t) => {
-        const isActive = currentTheme === t.id;
-        return (
-          <button
-            key={t.id}
-            role="radio"
-            aria-checked={isActive}
-            title={`${t.label} — ${t.description}`}
-            onClick={() => handleSelect(t.id)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '3px 8px',
-              fontSize: '11px',
-              fontWeight: isActive ? 600 : 500,
-              fontFamily: 'var(--font-sans)',
-              borderRadius: 'var(--radius-full)',
-              border: isActive ? '1px solid var(--emerald-border)' : '1px solid transparent',
-              background: isActive ? 'var(--emerald-glow)' : 'transparent',
-              color: isActive ? 'var(--emerald-400)' : 'var(--text-secondary)',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              lineHeight: 1.3,
-            }}
-          >
-            <span aria-hidden="true" style={{ fontSize: '11px' }}>{t.icon}</span>
-            <span>{t.shortLabel}</span>
-          </button>
-        );
-      })}
-    </div>
+    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+      <span className="brand-subtitle">Theme</span>
+      <select
+        value={theme}
+        onChange={(e) => {
+          const next = e.target.value as ThemeMode;
+          setTheme(next);
+          applyTheme(next);
+        }}
+        style={{ fontSize: 12, padding: '4px 8px', borderRadius: 8 }}
+        aria-label="Colour theme"
+      >
+        {THEMES.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

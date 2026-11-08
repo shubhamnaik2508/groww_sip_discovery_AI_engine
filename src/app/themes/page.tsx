@@ -1,4 +1,5 @@
 import { db, initializeDatabase } from '@/db';
+import { ensureResearchData } from '@/services/research/datasets';
 import {
   themes,
   evidenceThemeLinks,
@@ -13,7 +14,7 @@ import { classifyEvidenceProvenance, deduplicateEligibleEvidence, isGenuineResea
 export const dynamic = 'force-dynamic';
 
 export default async function ThemesPage() {
-  await initializeDatabase();
+  await ensureResearchData();
 
   const allThemes = await db
     .select()

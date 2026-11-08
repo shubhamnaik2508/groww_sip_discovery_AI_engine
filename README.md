@@ -52,6 +52,36 @@ Built on an **evidence-first problem space formulation** framework, the app stor
 
 ---
 
+## 🔺 Research Triangulation (NextLeap Part 1)
+
+The engine now runs two independent research pipelines and compares them theme by theme without pooling denominators.
+
+| Pipeline | Input | Processing | Output |
+|---|---|---|---|
+| **A: Primary research** | Google Forms export (`data/primary/google-forms-sip-survey.anonymized.csv`, 42 respondents, names removed) | Deterministic counts, per-question denominators, multi-select handling, segment cuts; AI coding of the open-ended answers only | `/primary-research` |
+| **B: Secondary research** | Genuine public feedback (`data/secondary/*.jsonl`): TradingQ&A (Discourse API), Google Play reviews, YouTube comments | Groq-hosted LLM with schema validation, verbatim-quote grounding, prompt-injection wrapping | `/analysis`, `/themes` |
+
+`/triangulation` compares both on a shared 12-theme codebook (`src/lib/research/codebook.ts`). It classifies each theme as convergent, divergent, one source only, not measured or insufficient, tests Life-to-SIP and MARKET PULSE against the evidence, and stores a guarded AI synthesis. `/opportunities` ranks opportunities with a published formula and traces each one back to survey answers and original public sources. `/validation` collects human accurate / partially accurate / inaccurate verdicts and stays **Pending** until a person reviews. `/evidence-log` exports the AI Evidence Log as Markdown or JSON.
+
+### Reproduce the research
+```bash
+# 1. Anonymise the raw Google Forms export (drops name/email/phone columns)
+npx tsx scripts/anonymize-survey.ts "path/to/export.csv"
+# 2. Collect TradingQ&A posts through the public Discourse API
+node scripts/collect-tradingqna.mjs 45
+# 3. Run the real AI pipeline and write data/analysis/analysis-snapshot.json
+npx tsx --env-file=.env.local scripts/run-research-analysis.ts
+```
+Commit the updated `data/` files; every deployment loads them on start. Human reviews can be exported from `/validation` and committed as `data/validation/validation-reviews.json`.
+
+### Environment
+See `.env.example`: `GROQ_API_KEY` (live AI), `RESEARCH_ADMIN_PASSCODE` (required in production for AI runs, imports and reviews), optional `DATABASE_URL`.
+
+### Design and motion
+The research theme (`src/app/research.css`) follows the Impeccable “Operate” guidance. Motion uses Transitions.dev snippets pasted verbatim (`src/app/transitions*.css`, wired in `src/components/motion.tsx`): accordion, panel reveal, sliding tabs, number subtle change, text-state swap, menu dropdown, success check and error shake, each with its reduced-motion guard. The skills live in `.claude/skills/`.
+
+---
+
 ## 🛠️ Tech Stack
 
 - **Framework:** Next.js 16 (Turbopack, App Router, React 19)

@@ -266,6 +266,76 @@ export async function initializeDatabase() {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS survey_datasets (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      source_hash TEXT NOT NULL UNIQUE,
+      imported_by TEXT NOT NULL,
+      imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      respondent_count INTEGER NOT NULL,
+      question_schema TEXT NOT NULL,
+      excluded_columns TEXT NOT NULL,
+      warnings TEXT NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS survey_responses (
+      id TEXT PRIMARY KEY,
+      dataset_id TEXT NOT NULL REFERENCES survey_datasets(id),
+      respondent_code TEXT NOT NULL,
+      submitted_at TEXT,
+      answers TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS survey_text_analyses (
+      id TEXT PRIMARY KEY,
+      dataset_id TEXT NOT NULL REFERENCES survey_datasets(id),
+      respondent_code TEXT NOT NULL,
+      question_id TEXT NOT NULL,
+      text TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      model TEXT NOT NULL,
+      prompt_version TEXT NOT NULL,
+      raw_output TEXT NOT NULL,
+      parsed_output TEXT,
+      validation_status TEXT NOT NULL,
+      validation_errors TEXT,
+      latency_ms INTEGER,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_syntheses (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      model TEXT NOT NULL,
+      prompt_version TEXT NOT NULL,
+      input_hash TEXT NOT NULL,
+      input_snapshot TEXT NOT NULL,
+      raw_output TEXT NOT NULL,
+      parsed_output TEXT,
+      validation_status TEXT NOT NULL,
+      validation_errors TEXT,
+      latency_ms INTEGER,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS validation_reviews (
+      id TEXT PRIMARY KEY,
+      record_analysis_id TEXT NOT NULL,
+      evidence_id TEXT NOT NULL,
+      verdict TEXT NOT NULL,
+      corrected_codes TEXT,
+      correction_note TEXT,
+      reviewer TEXT NOT NULL,
+      ai_output_snapshot TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_survey_responses_dataset ON survey_responses(dataset_id);
+    CREATE INDEX IF NOT EXISTS idx_validation_reviews_analysis ON validation_reviews(record_analysis_id);
+
     CREATE INDEX IF NOT EXISTS idx_evidence_content_hash ON evidence_records(content_hash);
     CREATE INDEX IF NOT EXISTS idx_evidence_platform ON evidence_records(platform);
     CREATE INDEX IF NOT EXISTS idx_evidence_journey_stage ON evidence_records(journey_stage);

@@ -1,4 +1,5 @@
 import { db, initializeDatabase } from '@/db';
+import { ensureResearchData } from '@/services/research/datasets';
 import { evidenceRecords, recordAnalyses, reviews, evidenceEdits, analysisRuns } from '@/db/schema';
 import { desc } from 'drizzle-orm';
 import { EvidenceTable } from '@/components/EvidenceTable';
@@ -7,7 +8,7 @@ import { classifyEvidenceProvenance, isSyntheticFixture } from '@/lib/evidenceEl
 export const dynamic = 'force-dynamic';
 
 export default async function EvidencePage() {
-  await initializeDatabase();
+  await ensureResearchData();
 
   const allRecords = await db
     .select()

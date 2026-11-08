@@ -44,3 +44,6 @@ next-env.d.ts
 # SQLite local databases
 *.db
 *.db-journal
+
+# Locally installed agent skills (third-party licenses; not redistributed)
+/.claude/

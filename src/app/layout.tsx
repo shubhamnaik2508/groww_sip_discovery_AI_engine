@@ -1,12 +1,16 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import './transitions-root.css';
+import './transitions.css';
+import './research.css';
 import { Navbar } from '@/components/Navbar';
 import { ThemeSwitcher } from '@/components/ThemeSwitcher';
 import Link from 'next/link';
+import { AiStatusBadge } from '@/components/AiStatusBadge';
 
 export const metadata: Metadata = {
-  title: 'Groww SIP Intelligence Lab | NextLeap PM Fellowship',
-  description: 'Evidence-first AI Discovery Engine for 12-Month SIP Continuation & Retention Analysis',
+  title: 'Groww SIP Discovery Engine | NextLeap Research',
+  description: 'Primary survey research and AI-coded public investor feedback, triangulated into evidence-traced SIP product opportunities.',
 };
 
 export default function RootLayout({
@@ -25,28 +29,20 @@ export default function RootLayout({
                   <div className="brand-logo" aria-hidden="true">G</div>
                   <div>
                     <div className="brand-title">
-                      Groww SIP Intelligence Lab
-                      <span className="brand-tag">Fellowship Prototype</span>
+                      Groww SIP Discovery Engine
+                      <span className="brand-tag">NextLeap research prototype</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      NextLeap PM Fellowship Graduation Project · 12-Month First-Time Investor Retention
+                    <div className="brand-subtitle" style={{ fontSize: '11.5px' }}>
+                      Why first-time investors start, pause, reduce or stop SIPs — survey + public feedback, triangulated
                     </div>
                   </div>
                 </Link>
               </div>
-
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+                <AiStatusBadge />
                 <ThemeSwitcher />
-                <span className="badge badge-neutral" title="Discovery Engine Environment">
-                  <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--emerald-500)', marginRight: '4px' }}></span>
-                  Local Engine Active
-                </span>
-                <Link href="/evidence" className="btn btn-primary" style={{ fontSize: '12px', padding: '6px 12px' }}>
-                  + Ingest Evidence
-                </Link>
               </div>
             </div>
-
             <Navbar />
           </header>
 
@@ -65,7 +61,7 @@ export default function RootLayout({
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', fontSize: '11px', color: 'var(--text-muted)' }}>
-              <span>Groww SIP Intelligence Lab · NextLeap Graduation Project</span>
+              <span>Groww SIP Discovery Engine · NextLeap Part 1</span>
               <span>Active SIP definition: At least 1 successful instalment in past 30 days</span>
             </div>
           </footer>

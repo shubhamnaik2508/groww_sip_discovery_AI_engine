@@ -1,4 +1,5 @@
 import { db, initializeDatabase } from '@/db';
+import { ensureResearchData } from '@/services/research/datasets';
 import {
   evidenceRecords,
   themes,
@@ -12,7 +13,7 @@ import Link from 'next/link';
 export const dynamic = 'force-dynamic';
 
 export default async function ExportPage() {
-  await initializeDatabase();
+  await ensureResearchData();
 
   const markdownContent = await ExportService.generateMarkdownReport();
   const csvContent = await EvidenceService.exportToCsv();

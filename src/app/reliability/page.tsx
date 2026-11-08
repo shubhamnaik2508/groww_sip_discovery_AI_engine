@@ -1,4 +1,5 @@
 import { db, initializeDatabase } from '@/db';
+import { ensureResearchData } from '@/services/research/datasets';
 import { analysisRuns } from '@/db/schema';
 import { desc } from 'drizzle-orm';
 import { EvaluationService } from '@/services/evaluation';
@@ -8,7 +9,7 @@ import { ReliabilityLab } from '@/components/ReliabilityLab';
 export const dynamic = 'force-dynamic';
 
 export default async function ReliabilityPage() {
-  await initializeDatabase();
+  await ensureResearchData();
 
   const evalResult = await EvaluationService.getLatestEvaluation();
   const allFailures = await ReviewService.listFailureCases();

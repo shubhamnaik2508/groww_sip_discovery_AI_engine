@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ensureResearchData } from '@/services/research/datasets';
 import { desc } from 'drizzle-orm';
 import { db, initializeDatabase } from '@/db';
 import { analysisRuns, contradictions, evidenceRecords, recordAnalyses } from '@/db/schema';
@@ -7,7 +8,7 @@ import { summarizeIntelligence } from '@/services/intelligence';
 export const dynamic = 'force-dynamic';
 
 export default async function InvestorIntelligencePage() {
-  await initializeDatabase();
+  await ensureResearchData();
   const [records, analyses, storedContradictions, runs] = await Promise.all([
     db.select().from(evidenceRecords).all(),
     db.select().from(recordAnalyses).orderBy(desc(recordAnalyses.createdAt)).all(),

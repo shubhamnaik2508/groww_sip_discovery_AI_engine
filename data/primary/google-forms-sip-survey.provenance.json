@@ -1,0 +1,9 @@
+{
+  "sourceFile": "SIP Investor Experience & Behaviour Research .csv",
+  "anonymisedAt": "2026-11-08T13:57:07.386Z",
+  "respondents": 42,
+  "excludedColumns": [
+    "Your Full Name?"
+  ],
+  "method": "PII columns dropped by parseGoogleFormsCsv; respondents re-coded R01..Rnn in export row order."
+}

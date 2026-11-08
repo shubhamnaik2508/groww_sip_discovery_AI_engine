@@ -256,3 +256,81 @@ export const contradictions = sqliteTable('contradictions', {
   createdAt: text('created_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
   updatedAt: text('updated_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
 });
+
+// ---------------------------------------------------------------------------
+// Primary research (Pipeline A) — Google Forms survey, stored separately from
+// public evidence records so the two datasets never share a denominator.
+// ---------------------------------------------------------------------------
+
+export const surveyDatasets = sqliteTable('survey_datasets', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  fileName: text('file_name').notNull(),
+  sourceHash: text('source_hash').notNull().unique(),
+  importedBy: text('imported_by').notNull(),
+  importedAt: text('imported_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
+  respondentCount: integer('respondent_count').notNull(),
+  questionSchema: text('question_schema').notNull(), // JSON SurveyQuestion[]
+  excludedColumns: text('excluded_columns').notNull(), // JSON string[] (PII headers dropped)
+  warnings: text('warnings').notNull(), // JSON string[]
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+});
+
+export const surveyResponses = sqliteTable('survey_responses', {
+  id: text('id').primaryKey(),
+  datasetId: text('dataset_id').notNull().references(() => surveyDatasets.id),
+  respondentCode: text('respondent_code').notNull(),
+  submittedAt: text('submitted_at'),
+  answers: text('answers').notNull(), // JSON { questionId: rawAnswer }
+});
+
+/** AI coding of open-ended survey answers (immutable model outputs). */
+export const surveyTextAnalyses = sqliteTable('survey_text_analyses', {
+  id: text('id').primaryKey(),
+  datasetId: text('dataset_id').notNull().references(() => surveyDatasets.id),
+  respondentCode: text('respondent_code').notNull(),
+  questionId: text('question_id').notNull(),
+  text: text('text').notNull(),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  promptVersion: text('prompt_version').notNull(),
+  rawOutput: text('raw_output').notNull(),
+  parsedOutput: text('parsed_output'),
+  validationStatus: text('validation_status').notNull(),
+  validationErrors: text('validation_errors'),
+  latencyMs: integer('latency_ms'),
+  createdAt: text('created_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
+});
+
+/** AI research syntheses (e.g. triangulation answers). Stored with their exact input snapshot. */
+export const aiSyntheses = sqliteTable('ai_syntheses', {
+  id: text('id').primaryKey(),
+  kind: text('kind').notNull(), // 'triangulation'
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  promptVersion: text('prompt_version').notNull(),
+  inputHash: text('input_hash').notNull(),
+  inputSnapshot: text('input_snapshot').notNull(),
+  rawOutput: text('raw_output').notNull(),
+  parsedOutput: text('parsed_output'),
+  validationStatus: text('validation_status').notNull(),
+  validationErrors: text('validation_errors'),
+  latencyMs: integer('latency_ms'),
+  createdAt: text('created_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
+});
+
+/**
+ * Lightweight human validation of AI codings (accurate / partially accurate / inaccurate).
+ * Append-only: the AI output is snapshotted and never modified.
+ */
+export const validationReviews = sqliteTable('validation_reviews', {
+  id: text('id').primaryKey(),
+  recordAnalysisId: text('record_analysis_id').notNull(),
+  evidenceId: text('evidence_id').notNull(),
+  verdict: text('verdict').notNull(), // 'accurate' | 'partially_accurate' | 'inaccurate'
+  correctedCodes: text('corrected_codes'), // JSON ResearchCode[] when the reviewer corrects the coding
+  correctionNote: text('correction_note'),
+  reviewer: text('reviewer').notNull(),
+  aiOutputSnapshot: text('ai_output_snapshot').notNull(),
+  createdAt: text('created_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
+});

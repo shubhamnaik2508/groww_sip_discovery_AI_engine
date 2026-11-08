@@ -1,4 +1,5 @@
 import { db, initializeDatabase } from '@/db';
+import { ensureResearchData } from '@/services/research/datasets';
 import {
   evidenceRecords,
   themes,
@@ -16,7 +17,7 @@ import { classifyEvidenceProvenance, isGenuineResearchEvidence, isSyntheticFixtu
 export const dynamic = 'force-dynamic';
 
 export default async function EvidenceGraphPage() {
-  await initializeDatabase();
+  await ensureResearchData();
 
   const [storedRecords, storedThemes, storedLinks, storedAnalyses, storedQuestions, storedOpps, storedOppThemes, storedContradictions, runs] = await Promise.all([
     db.select().from(evidenceRecords).all(), db.select().from(themes).all(),

@@ -3,6 +3,11 @@ import { client } from './index';
 export async function clearAllTables() {
   await client.execute('PRAGMA foreign_keys = OFF;');
   await client.executeMultiple(`
+    DELETE FROM validation_reviews;
+    DELETE FROM ai_syntheses;
+    DELETE FROM survey_text_analyses;
+    DELETE FROM survey_responses;
+    DELETE FROM survey_datasets;
     DELETE FROM evaluation_items;
     DELETE FROM evaluation_runs;
     DELETE FROM golden_labels;

@@ -1,5 +1,44 @@
 import { z } from 'zod';
 import { JourneyStageSchema } from '@/lib/types';
+import { RESEARCH_CODES, LIFEFLOW_SIGNALS } from '@/lib/research/codebook';
+
+/**
+ * Normalises text for verbatim-quote matching: case, whitespace, typographic quotes
+ * and dashes. Leading/trailing quote marks and ellipses on a quote are ignored.
+ */
+export function normalizeForMatch(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[‘’‛′]/g, "'")
+    .replace(/[“”‟″]/g, '"')
+    .replace(/[–—]/g, '-')
+    .replace(/…/g, '...')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function normalizeQuote(value: string): string {
+  // Strip wrapping quote marks and leading/trailing ellipses the model may add.
+  return normalizeForMatch(value)
+    .replace(/^(?:["'\s]|\.\.\.)+/, '')
+    .replace(/(?:["'\s]|\.\.\.)+$/, '')
+    .trim();
+}
+
+export function isVerbatim(originalText: string, quote: string | null | undefined): boolean {
+  if (!quote) return false;
+  const q = normalizeQuote(quote);
+  return q.length >= 3 && normalizeForMatch(originalText).includes(q);
+}
+
+export const CodedQuoteSchema = z.object({
+  code: z.enum(RESEARCH_CODES),
+  evidenceQuote: z.string().min(3),
+});
+export const SignalQuoteSchema = z.object({
+  signal: z.enum(LIFEFLOW_SIGNALS),
+  evidenceQuote: z.string().min(3),
+});
 
 export const ResearchDimensionSchema = z.enum([
   'sip_starting_motivation',
@@ -104,6 +143,11 @@ export const StructuredAnalysisOutputSchema = z.object({
   followUpResearchQuestion: z.string().min(5, 'Actionable follow-up research question is required'),
 
   selfReportedConfidence: z.enum(['low', 'medium', 'high']).describe('Self-reported model confidence (unvalidated)'),
+
+  // Prompt v5+: shared-codebook coding used for research triangulation.
+  isFirstPersonExperience: z.boolean().optional().describe('True when the author describes their own SIP experience rather than giving general advice/news.'),
+  triangulationCodes: z.array(CodedQuoteSchema).optional(),
+  lifeflowSignals: z.array(SignalQuoteSchema).optional(),
 });
 
 export type StructuredAnalysisOutput = z.infer<typeof StructuredAnalysisOutputSchema>;
@@ -124,11 +168,11 @@ export function validateOutputGuards(
   output: StructuredAnalysisOutput
 ): GuardValidationResult {
   const errors: string[] = [];
-  const normalizedOriginal = originalText.toLowerCase().replace(/\s+/g, ' ');
+  const normalizedOriginal = normalizeForMatch(originalText);
 
   // 1. Excerpt guard
   if (output.evidenceExcerpt) {
-    const normalizedExcerpt = output.evidenceExcerpt.toLowerCase().replace(/\s+/g, ' ');
+    const normalizedExcerpt = normalizeQuote(output.evidenceExcerpt);
     if (!normalizedOriginal.includes(normalizedExcerpt)) {
       errors.push(
         `Guard Violation [Excerpt Mismatch]: The cited excerpt "${output.evidenceExcerpt}" is not a verbatim substring of the original evidence.`
@@ -138,7 +182,7 @@ export function validateOutputGuards(
 
   // 2. Investor context quote guard
   if (output.investorContext && output.investorContext.supportingQuote) {
-    const normalizedQuote = output.investorContext.supportingQuote.toLowerCase().replace(/\s+/g, ' ');
+    const normalizedQuote = normalizeQuote(output.investorContext.supportingQuote);
     if (!normalizedOriginal.includes(normalizedQuote)) {
       errors.push(
         `Guard Violation [Hallucinated Context]: The claimed investor context quote "${output.investorContext.supportingQuote}" cannot be found in the source text.`
@@ -147,22 +191,22 @@ export function validateOutputGuards(
   }
 
   if (output.relevantTextSpan) {
-    const normalizedSpan = output.relevantTextSpan.toLowerCase().replace(/\s+/g, ' ');
+    const normalizedSpan = normalizeQuote(output.relevantTextSpan);
     if (!normalizedOriginal.includes(normalizedSpan)) errors.push('Guard Violation [Relevant Span Mismatch]: relevantTextSpan is not a source substring.');
   }
   if (output.journeyPeriod && output.journeyPeriod !== 'unspecified') {
-    const periodQuote = output.journeyPeriodEvidence?.toLowerCase().replace(/\s+/g, ' ').trim();
+    const periodQuote = (output.journeyPeriodEvidence ? normalizeQuote(output.journeyPeriodEvidence) : undefined);
     if (!periodQuote || !normalizedOriginal.includes(periodQuote)) errors.push('Guard Violation [Unsupported Journey Period]: specific journeyPeriod requires an exact source quote.');
   }
   if (output.checkingFrequency && output.checkingFrequency !== 'not_specified') {
-    const frequencyQuote = output.checkingFrequencyEvidence?.toLowerCase().replace(/\s+/g, ' ').trim();
+    const frequencyQuote = (output.checkingFrequencyEvidence ? normalizeQuote(output.checkingFrequencyEvidence) : undefined);
     if (!frequencyQuote || !normalizedOriginal.includes(frequencyQuote)) errors.push('Guard Violation [Unsupported Checking Frequency]: a stated frequency requires an exact source quote.');
   }
 
   for (const [key, value] of Object.entries(output.explicitlyStatedSegment ?? {})) {
     if (!value || value === 'unknown') continue;
     const quote = output.segmentEvidence?.[key as 'ageBand' | 'incomeStability' | 'investmentSource' | 'startingInfluence' | 'sipStatus'];
-    const normalizedQuote = quote?.toLowerCase().replace(/\s+/g, ' ').trim();
+    const normalizedQuote = (quote ? normalizeQuote(quote) : undefined);
     if (!normalizedQuote || !normalizedOriginal.includes(normalizedQuote)) {
       errors.push(`Guard Violation [Unsupported Segment]: ${key} was populated without a matching verbatim segmentEvidence quote.`);
     }
@@ -170,7 +214,7 @@ export function validateOutputGuards(
 
   for (const [index, claim] of output.claims.entries()) {
     if (claim.type !== 'observation') continue;
-    const excerpt = claim.groundingExcerpt?.toLowerCase().replace(/\s+/g, ' ').trim();
+    const excerpt = (claim.groundingExcerpt ? normalizeQuote(claim.groundingExcerpt) : undefined);
     if (!excerpt || !normalizedOriginal.includes(excerpt)) {
       errors.push(`Guard Violation [Ungrounded Observation]: observation claim ${index + 1} has no matching source span.`);
     }
@@ -188,7 +232,7 @@ export function validateOutputGuards(
   ];
   for (const [field, value, quote] of groundedFields) {
     if (!value) continue;
-    const normalizedQuote = quote?.toLowerCase().replace(/\s+/g, ' ').trim();
+    const normalizedQuote = (quote ? normalizeQuote(quote) : undefined);
     if (!normalizedQuote || !normalizedOriginal.includes(normalizedQuote)) {
       errors.push(`Guard Violation [Unsupported ${field}]: a populated ${field} requires a matching verbatim evidence quote.`);
     }
@@ -207,4 +251,37 @@ export function validateOutputGuards(
     isValid: errors.length === 0,
     guardErrors: errors,
   };
+}
+
+/**
+ * Removes codebook codes and LifeFlow signals whose evidence quote is not verbatim
+ * in the source. Ungrounded codes are dropped (and reported) rather than failing
+ * the whole record, so one paraphrased quote cannot add an unsupported count.
+ */
+export function pruneUngroundedCoding(
+  originalText: string,
+  output: StructuredAnalysisOutput,
+): { output: StructuredAnalysisOutput; pruned: string[] } {
+  const pruned: string[] = [];
+  const seenCodes = new Set<string>();
+  const codes = (output.triangulationCodes ?? []).filter((c) => {
+    if (!isVerbatim(originalText, c.evidenceQuote)) {
+      pruned.push(`Pruned code ${c.code}: quote not found verbatim ("${c.evidenceQuote.slice(0, 80)}")`);
+      return false;
+    }
+    if (seenCodes.has(c.code)) return false;
+    seenCodes.add(c.code);
+    return true;
+  });
+  const seenSignals = new Set<string>();
+  const signals = (output.lifeflowSignals ?? []).filter((s) => {
+    if (!isVerbatim(originalText, s.evidenceQuote)) {
+      pruned.push(`Pruned signal ${s.signal}: quote not found verbatim ("${s.evidenceQuote.slice(0, 80)}")`);
+      return false;
+    }
+    if (seenSignals.has(s.signal)) return false;
+    seenSignals.add(s.signal);
+    return true;
+  });
+  return { output: { ...output, triangulationCodes: codes, lifeflowSignals: signals }, pruned };
 }

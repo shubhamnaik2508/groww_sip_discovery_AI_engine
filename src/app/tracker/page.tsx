@@ -1,4 +1,5 @@
 import { db, initializeDatabase } from '@/db';
+import { ensureResearchData } from '@/services/research/datasets';
 import { contradictions, researchQuestions, evidenceRecords } from '@/db/schema';
 import { desc } from 'drizzle-orm';
 import { TrackerView, StageCoverageItem } from '@/components/TrackerView';
@@ -16,7 +17,7 @@ const STAGE_LABELS: { [key: string]: string } = {
 };
 
 export default async function TrackerPage() {
-  await initializeDatabase();
+  await ensureResearchData();
 
   const allRecords = await db.select().from(evidenceRecords).all();
   const allContradictions = await db.select().from(contradictions).orderBy(desc(contradictions.createdAt)).all();
