@@ -56,7 +56,18 @@ describe('research pipeline (bundled genuine datasets)', () => {
     }
   });
 
+  it('loads the bundled human reviews and scores each record by its latest verdict', async () => {
+    const reviews = await db.select().from(validationReviews).all();
+    expect(reviews.length).toBeGreaterThan(0);
+    const log = buildEvidenceLog(await loadResearchState());
+    const v = log.validation.summary;
+    expect(v.reviewed).toBeLessThanOrEqual(v.sampleSize);
+    expect(v.accurate + v.partial + v.inaccurate).toBe(v.reviewed);
+    expect(v.strictAgreementPct).toBe(Math.round((v.accurate / v.reviewed) * 1000) / 10);
+  });
+
   it('keeps validation pending and the evidence log honest when no human review exists', async () => {
+    await db.delete(validationReviews);
     expect(await db.select().from(validationReviews).all()).toHaveLength(0);
     const log = buildEvidenceLog(await loadResearchState());
     expect(log.validation.summary.status).toBe('pending');
