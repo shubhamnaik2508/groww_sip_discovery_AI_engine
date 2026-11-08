@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { recordAnalyses, validationReviews } from '@/db/schema';
 import { AnalysisOrchestrator } from '@/services/ai';
-import { groqConfigured } from '@/services/ai/groq';
+import { isLiveProvider, LiveProvider, providerConfigured, resolveProvider } from '@/services/ai/llm';
 import { ensureResearchData, importSurveyCsvText, loadActiveSurvey } from '@/services/research/datasets';
 import { loadResearchState } from '@/services/research/triangulation-service';
 import { analyseSurveyOpenText, runTriangulationSynthesis } from '@/services/research/ai-research';
@@ -26,6 +26,18 @@ function checkAccess(passcode: string | null | undefined): string | null {
   const b = Buffer.from(expected);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return 'Incorrect research passcode.';
   return null;
+}
+
+/** Validates the provider chosen in the UI (Gemini is the default when none is sent). */
+function pickProvider(requested?: string): LiveProvider | { ok: false; error: string } {
+  if (requested && isLiveProvider(requested) && !providerConfigured(requested)) {
+    return { ok: false, error: `${requested === 'gemini' ? 'Gemini' : 'Groq'} has no API key on this server. Choose the other provider.` };
+  }
+  try {
+    return resolveProvider(requested || null);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'No AI provider is available.' };
+  }
 }
 
 // Cost control: per-instance budget of live record analyses per rolling hour.
@@ -60,10 +72,11 @@ export async function importSurveyAction(formData: FormData): Promise<Result<{ r
   }
 }
 
-export async function runPublicAnalysisAction(input: { passcode?: string; limit?: number }): Promise<Result<{ analysed: number; valid: number; failed: number; runId: string | null; remaining: number; model: string | null }>> {
+export async function runPublicAnalysisAction(input: { passcode?: string; limit?: number; provider?: string }): Promise<Result<{ analysed: number; valid: number; failed: number; runId: string | null; remaining: number; model: string | null }>> {
   const denied = checkAccess(input.passcode);
   if (denied) return { ok: false, error: denied };
-  if (!groqConfigured()) return { ok: false, error: 'GROQ_API_KEY is not configured on this server, so live AI analysis cannot run. Stored runs remain available.' };
+  const chosen = pickProvider(input.provider);
+  if (typeof chosen !== 'string' || !isLiveProvider(chosen)) return chosen;
   await ensureResearchData();
   const state = await loadResearchState();
   const todo = state.publicRecords.filter((r) => r.eligible && r.analysis?.status !== 'valid').map((r) => r.id);
@@ -71,7 +84,7 @@ export async function runPublicAnalysisAction(input: { passcode?: string; limit?
   const n = takeBudget(Math.min(MAX_RECORDS_PER_REQUEST, Math.max(1, input.limit ?? MAX_RECORDS_PER_REQUEST), todo.length));
   if (n === 0) return { ok: false, error: `Hourly AI budget reached (${HOURLY_RECORD_BUDGET} records/hour). Try again later.` };
   try {
-    const run = await AnalysisOrchestrator.executeRun({ providerName: 'groq', recordIds: todo.slice(0, n), maxRecords: n });
+    const run = await AnalysisOrchestrator.executeRun({ providerName: chosen, recordIds: todo.slice(0, n), maxRecords: n });
     revalidateResearch();
     return { ok: true, data: { analysed: run.totalRecords, valid: run.successfulRecords, failed: run.failedRecords, runId: run.runId, remaining: todo.length - run.totalRecords, model: run.model } };
   } catch (e) {
@@ -79,27 +92,29 @@ export async function runPublicAnalysisAction(input: { passcode?: string; limit?
   }
 }
 
-export async function runSurveyTextAnalysisAction(input: { passcode?: string }): Promise<Result<{ analysed: number; failed: number; errors: string[] }>> {
+export async function runSurveyTextAnalysisAction(input: { passcode?: string; provider?: string }): Promise<Result<{ analysed: number; failed: number; errors: string[] }>> {
   const denied = checkAccess(input.passcode);
   if (denied) return { ok: false, error: denied };
-  if (!groqConfigured()) return { ok: false, error: 'GROQ_API_KEY is not configured on this server.' };
+  const chosen = pickProvider(input.provider);
+  if (typeof chosen !== 'string' || !isLiveProvider(chosen)) return chosen;
   const survey = await loadActiveSurvey();
   if (!survey) return { ok: false, error: 'No survey dataset is loaded.' };
   if (takeBudget(3) === 0) return { ok: false, error: 'Hourly AI budget reached. Try again later.' };
-  const r = await analyseSurveyOpenText(survey);
+  const r = await analyseSurveyOpenText(survey, chosen);
   revalidateResearch();
   return { ok: true, data: r };
 }
 
-export async function runSynthesisAction(input: { passcode?: string }): Promise<Result<{ id: string; status: string }>> {
+export async function runSynthesisAction(input: { passcode?: string; provider?: string }): Promise<Result<{ id: string; status: string }>> {
   const denied = checkAccess(input.passcode);
   if (denied) return { ok: false, error: denied };
-  if (!groqConfigured()) return { ok: false, error: 'GROQ_API_KEY is not configured on this server.' };
+  const chosen = pickProvider(input.provider);
+  if (typeof chosen !== 'string' || !isLiveProvider(chosen)) return chosen;
   if (takeBudget(2) === 0) return { ok: false, error: 'Hourly AI budget reached. Try again later.' };
   try {
     const state = await loadResearchState();
     if (state.triangulation.publicSummary.analysedValid === 0) return { ok: false, error: 'Analyse public feedback first: the synthesis needs both sources.' };
-    const row = await runTriangulationSynthesis(state.triangulation);
+    const row = await runTriangulationSynthesis(state.triangulation, chosen);
     revalidateResearch();
     return { ok: true, data: { id: row.id, status: row.validationStatus } };
   } catch (e) {

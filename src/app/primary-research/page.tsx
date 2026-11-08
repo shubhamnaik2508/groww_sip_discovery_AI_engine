@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { loadResearchState } from '@/services/research/triangulation-service';
 import { computeAgeSummary, computeHeadlineMetrics, computeQuestionStats, computeSegmentComparisons } from '@/lib/research/survey';
 import { SURVEY_CODE_MAPPINGS, codeLabel } from '@/lib/research/codebook';
-import { groqConfigured } from '@/services/ai/groq';
+import { providerOptions } from '@/services/ai/llm';
 import { needsPasscode } from '@/lib/research/access';
 import { Accordion } from '@/components/motion';
 import { SurveyImportForm, RunAiButton } from '@/components/research/ActionForms';
@@ -179,7 +179,7 @@ export default async function PrimaryResearchPage() {
                         );
                       })}
                       <p className="rx-small rx-muted">Only {s.answered} of {s.totalRespondents} respondents answered this optional question, so it cannot support prevalence claims.</p>
-                      {!openText.length ? <RunAiButton kind="survey_text" needsPasscode={needsPasscode()} liveAvailable={groqConfigured()} label="AI-code open-ended answers" /> : null}
+                      {!openText.length ? <RunAiButton kind="survey_text" needsPasscode={needsPasscode()} providers={providerOptions()} label="AI-code open-ended answers" /> : null}
                     </div>
                   ) : null}
                 </div>

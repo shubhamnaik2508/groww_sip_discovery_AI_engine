@@ -4,7 +4,8 @@ import { loadResearchState } from '@/services/research/triangulation-service';
 import { AnalysisRecords, AnalysisRecordView } from '@/components/research/AnalysisRecords';
 import { RunAnalysisPanel } from '@/components/research/ActionForms';
 import { Callout, PageHead, SourcePill, Stat, fmtDate, platformLabel } from '@/components/research/ui';
-import { groqConfigured, groqModel, RECORD_PROMPT_VERSION } from '@/services/ai/groq';
+import { RECORD_PROMPT_VERSION } from '@/services/ai/record-analysis';
+import { llmConfigured, llmLabel, providerOptions } from '@/services/ai/llm';
 import { needsPasscode } from '@/lib/research/access';
 import { IconDownload } from '@/components/icons';
 
@@ -60,7 +61,7 @@ export default async function AnalysisPage() {
         <Stat label="Valid AI analyses" value={ps.analysedValid} unit={`/ ${ps.eligibleRecords}`} note="Passed schema and grounding checks" />
         <Stat label="Failed checks" value={ps.analysedFailed} note="Kept with the reason; not counted" />
         <Stat label="First-person accounts" value={ps.firstPersonValid} unit={`/ ${ps.analysedValid}`} note="Author describes their own SIP" />
-        <Stat label="Model" value={<span style={{ fontSize: 15 }}>{ps.models.join(', ') || (groqConfigured() ? groqModel() : 'none yet')}</span>} note={`Prompt ${RECORD_PROMPT_VERSION}`} />
+        <Stat label="Model" value={<span style={{ fontSize: 15 }}>{ps.models.join(', ') || (llmConfigured() ? llmLabel() : 'none yet')}</span>} note={`Prompt ${RECORD_PROMPT_VERSION}`} />
       </div>
 
       {ps.analysedValid === 0 ? (
@@ -68,7 +69,7 @@ export default async function AnalysisPage() {
       ) : null}
 
       <div className="rx-grid rx-grid-2">
-        <RunAnalysisPanel needsPasscode={needsPasscode()} liveAvailable={groqConfigured()} pendingCount={ps.notAnalysed + ps.analysedFailed} />
+        <RunAnalysisPanel needsPasscode={needsPasscode()} providers={providerOptions()} pendingCount={ps.notAnalysed + ps.analysedFailed} />
         <div className="rx-panel rx-panel-pad" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <h3 style={{ fontSize: 15 }}>How each record is processed</h3>
           <ol className="rx-small" style={{ paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4, lineHeight: 1.5 }}>

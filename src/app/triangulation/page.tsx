@@ -3,7 +3,7 @@ import { loadResearchState } from '@/services/research/triangulation-service';
 import { TriangulationMatrix } from '@/components/research/TriangulationMatrix';
 import { Callout, PageHead, SourcePill, Stat, fmtDate, platformLabel } from '@/components/research/ui';
 import { RunAiButton } from '@/components/research/ActionForms';
-import { groqConfigured } from '@/services/ai/groq';
+import { providerOptions } from '@/services/ai/llm';
 import { needsPasscode } from '@/lib/research/access';
 import { codeLabel } from '@/lib/research/codebook';
 import type { SynthesisOutput } from '@/services/research/ai-research';
@@ -151,7 +151,7 @@ export default async function TriangulationPage() {
         ) : (
           <Callout tone="warn">No AI synthesis has been generated yet. It needs analysed public feedback and a configured model.</Callout>
         )}
-        <RunAiButton kind="synthesis" needsPasscode={needsPasscode()} liveAvailable={groqConfigured()} label={synthesis ? 'Regenerate synthesis' : 'Generate synthesis'} />
+        <RunAiButton kind="synthesis" needsPasscode={needsPasscode()} providers={providerOptions()} label={synthesis ? 'Regenerate synthesis' : 'Generate synthesis'} />
       </section>
 
       <section className="rx-section">

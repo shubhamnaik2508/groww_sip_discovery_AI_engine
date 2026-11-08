@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { db } from '@/db';
 import { aiSyntheses, surveyTextAnalyses } from '@/db/schema';
-import { groqChatJson, groqModel, groqConfigured } from '@/services/ai/groq';
+import { chatJson, llmModel, resolveProvider, LiveProvider } from '@/services/ai/llm';
 import { AIProviderError } from '@/services/ai/provider';
 import { CodedQuoteSchema, isVerbatim } from '@/services/ai/schema';
 import { CODE_DEFINITIONS, RESEARCH_CODES, isResearchCode } from '@/lib/research/codebook';
@@ -21,7 +21,8 @@ const SurveyTextOutputSchema = z.object({
   uncertainty: z.string().min(3),
 });
 
-export async function analyseSurveyOpenText(stored: StoredSurvey): Promise<{ analysed: number; failed: number; errors: string[] }> {
+export async function analyseSurveyOpenText(stored: StoredSurvey, requestedProvider?: LiveProvider | null): Promise<{ analysed: number; failed: number; errors: string[] }> {
+  const chosen = resolveProvider(requestedProvider);
   const openQs = stored.survey.questions.filter((q) => q.type === 'open_text');
   const items = stored.survey.responses.flatMap((r) =>
     openQs.filter((q) => (r.answers[q.id] ?? '').trim()).map((q) => ({ respondentCode: r.respondentCode, question: q, text: r.answers[q.id].trim() })),
@@ -37,7 +38,7 @@ Return JSON: {"triangulationCodes":[{"code":"...","evidenceQuote":"exact span"}]
   for (const item of items) {
     const user = `Question: ${item.question.wording.trim()}\n<answer>\n${item.text}\n</answer>`;
     try {
-      const { rawOutput, servedModel, latencyMs } = await groqChatJson(system, user, { maxTokens: 600 });
+      const { rawOutput, servedModel, latencyMs, provider } = await chatJson(system, user, { maxTokens: 600, provider: chosen });
       let parsed: unknown = null;
       let status = 'valid';
       const errs: string[] = [];
@@ -64,7 +65,7 @@ Return JSON: {"triangulationCodes":[{"code":"...","evidenceQuote":"exact span"}]
         respondentCode: item.respondentCode,
         questionId: item.question.id,
         text: item.text,
-        provider: 'groq',
+        provider,
         model: servedModel,
         promptVersion: SURVEY_TEXT_PROMPT_VERSION,
         rawOutput,
@@ -154,8 +155,8 @@ export function guardSynthesis(output: SynthesisOutput, input: ReturnType<typeof
   return errors;
 }
 
-export async function runTriangulationSynthesis(t: TriangulationResult): Promise<typeof aiSyntheses.$inferSelect> {
-  if (!groqConfigured()) throw new AIProviderError('GROQ_API_KEY is not configured on the server, so the AI synthesis cannot run.', 'MISSING_API_KEY');
+export async function runTriangulationSynthesis(t: TriangulationResult, requestedProvider?: LiveProvider | null): Promise<typeof aiSyntheses.$inferSelect> {
+  const chosen = resolveProvider(requestedProvider); // throws a clear error when no key is configured
   const input = buildSynthesisInput(t);
   const inputJson = JSON.stringify(input);
   const system = `You are a senior product researcher. You receive a deterministic comparison matrix between two INDEPENDENT sources about Indian SIP investors:
@@ -169,7 +170,7 @@ Answer the research questions using ONLY the numbers and quotes provided. Rules:
 - Life-to-SIP and MARKET PULSE are existing concepts under test. Do not assume they are right; say plainly where evidence is weak or points elsewhere.
 - These are interpretations (AI inference), not facts.
 Return JSON with keys: convergentProblems, surveyProminentPubliclyRare, publicEmergentNotInSurvey, contradictions, strongestFindings, needsMoreResearch, newOpportunities (each an array of {"statement","codes":[],"evidenceIds":[]}), lifeToSipAssessment (string), marketPulseAssessment (string), caveats (string array).`;
-  const { rawOutput, servedModel, latencyMs } = await groqChatJson(system, `MATRIX:\n${inputJson}`, { maxTokens: 3000 });
+  const { rawOutput, servedModel, latencyMs, provider } = await chatJson(system, `MATRIX:\n${inputJson}`, { maxTokens: 3000, provider: chosen });
   let parsed: SynthesisOutput | null = null;
   let status = 'valid';
   let errors: string[] = [];
@@ -190,8 +191,8 @@ Return JSON with keys: convergentProblems, surveyProminentPubliclyRare, publicEm
   const row = {
     id: crypto.randomUUID(),
     kind: 'triangulation',
-    provider: 'groq',
-    model: servedModel || groqModel(),
+    provider,
+    model: servedModel || llmModel() || 'unknown',
     promptVersion: SYNTHESIS_PROMPT_VERSION,
     inputHash: crypto.createHash('sha256').update(inputJson).digest('hex'),
     inputSnapshot: inputJson,

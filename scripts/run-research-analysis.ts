@@ -10,7 +10,7 @@
  *   5. Writes data/analysis/analysis-snapshot.json (raw model outputs unmodified).
  *
  * Usage:
- *   npx tsx --env-file=.env.local scripts/run-research-analysis.ts [--skip-records] [--skip-synthesis] [--max N]
+ *   npx tsx --env-file=.env.local scripts/run-research-analysis.ts [--provider gemini|groq] [--skip-records] [--skip-synthesis] [--max N]
  * Uses DATABASE_URL (default here: file:research.db, gitignored).
  */
 process.env.DATABASE_URL ||= 'file:research.db';
@@ -21,7 +21,11 @@ import path from 'node:path';
 async function main() {
   const args = process.argv.slice(2);
   const max = args.includes('--max') ? Number(args[args.indexOf('--max') + 1]) : undefined;
-  if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY missing. Add it to .env.local and run with --env-file=.env.local.');
+  const { resolveProvider, llmLabel } = await import('../src/services/ai/llm');
+  // --provider gemini|groq (default: Gemini when its key exists, else Groq)
+  const requested = args.includes('--provider') ? args[args.indexOf('--provider') + 1] : null;
+  const provider = resolveProvider(requested);
+  console.log(`AI provider: ${llmLabel(provider)}`);
 
   const { ensureResearchData, buildAnalysisSnapshot, loadActiveSurvey } = await import('../src/services/research/datasets');
   const { loadResearchState } = await import('../src/services/research/triangulation-service');
@@ -34,21 +38,21 @@ async function main() {
 
   if (!args.includes('--skip-records')) {
     const todo = state.publicRecords.filter((r) => r.eligible && r.analysis?.status !== 'valid').map((r) => r.id);
-    console.log(`Pipeline B: analysing ${max ? Math.min(max, todo.length) : todo.length} public records with Groq…`);
-    const summary = await AnalysisOrchestrator.executeRun({ providerName: 'groq', recordIds: todo, maxRecords: max });
+    console.log(`Pipeline B: analysing ${max ? Math.min(max, todo.length) : todo.length} public records with ${llmLabel(provider)}…`);
+    const summary = await AnalysisOrchestrator.executeRun({ providerName: provider, recordIds: todo, maxRecords: max });
     console.log(`  run ${summary.runId}: ${summary.successfulRecords} valid, ${summary.failedRecords} failed (model ${summary.model})`);
   }
 
   const survey = await loadActiveSurvey();
   if (survey && !state.surveyOpenText.length) {
     console.log('Pipeline A: coding open-ended survey answers…');
-    console.log('  ', await analyseSurveyOpenText(survey));
+    console.log('  ', await analyseSurveyOpenText(survey, provider));
   }
 
   state = await loadResearchState();
   if (!args.includes('--skip-synthesis')) {
     console.log('Triangulation synthesis…');
-    const s = await runTriangulationSynthesis(state.triangulation);
+    const s = await runTriangulationSynthesis(state.triangulation, provider);
     console.log(`  synthesis ${s.id}: ${s.validationStatus}${s.validationErrors ? ' ' + s.validationErrors : ''}`);
   }
 

@@ -1,7 +1,7 @@
 import { computeHeadlineMetrics } from '@/lib/research/survey';
 import { CODE_DEFINITIONS, codeLabel } from '@/lib/research/codebook';
 import { selectValidationSample, summariseValidation, VALIDATION_SAMPLE_SIZE } from '@/lib/research/validation';
-import { RECORD_PROMPT_VERSION } from '@/services/ai/groq';
+import { RECORD_PROMPT_VERSION } from '@/services/ai/record-analysis';
 import type { SynthesisOutput } from './ai-research';
 import type { ResearchState } from './triangulation-service';
 
