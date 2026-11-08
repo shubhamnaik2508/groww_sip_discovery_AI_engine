@@ -26,8 +26,10 @@ const WORKFLOW = [
   { href: '/', label: 'Overview', Icon: IconOverview },
   { href: '/primary-research', label: 'Survey', Icon: IconSurvey },
   { href: '/evidence', label: 'Public evidence', Icon: IconSources },
+  { href: '/graph', label: 'Evidence graph', Icon: IconGraph },
   { href: '/analysis', label: 'AI analysis', Icon: IconSpark },
   { href: '/themes', label: 'Themes', Icon: IconThemes },
+  { href: '/intelligence', label: 'Investor intelligence', Icon: IconCompass },
   { href: '/triangulation', label: 'Triangulation', Icon: IconTriangulate },
   { href: '/opportunities', label: 'Opportunities', Icon: IconTarget },
   { href: '/validation', label: 'Validation', Icon: IconCheckSquare },
@@ -35,8 +37,6 @@ const WORKFLOW = [
 ];
 
 const MORE = [
-  { href: '/intelligence', label: 'Investor intelligence', Icon: IconCompass },
-  { href: '/graph', label: 'Evidence graph', Icon: IconGraph },
   { href: '/reliability', label: 'AI reliability lab', Icon: IconFlask },
   { href: '/tracker', label: 'Contradictions & gaps', Icon: IconScale },
   { href: '/export', label: 'Export', Icon: IconDownload },
