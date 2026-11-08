@@ -8,7 +8,7 @@ import { CODE_DEFINITIONS, LIFEFLOW_SIGNAL_DEFINITIONS, RESEARCH_CODES } from '@
  */
 
 export const MAX_INPUT_CHARS = 4000; // cost control: long posts are truncated (and flagged)
-export const RECORD_PROMPT_VERSION = '2026-11-triangulation-v5';
+export const RECORD_PROMPT_VERSION = '2026-11-triangulation-v5.1';
 export const RECORD_SCHEMA_VERSION = '2.3.0';
 
 export interface ChatJsonResult {
@@ -45,7 +45,7 @@ ${codebookText}
 LIFEFLOW SIGNALS
 ${signalText}
 
-KNOWN THEMES (reuse a name when it fits; otherwise propose a new one with isNewProposal=true)
+KNOWN THEMES (reuse a name when it fits; otherwise propose a new one with isNewProposal=true). Theme names are plain-English Title Case, 2-5 words, e.g. "Salary Timing Disruption" (never snake_case).
 ${themes}
 
 Return ONE JSON object with exactly these keys:

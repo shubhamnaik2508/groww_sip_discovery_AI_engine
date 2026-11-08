@@ -6,7 +6,8 @@ import { analyzeRecordWith, ChatJsonResult, RECORD_PROMPT_VERSION, RECORD_SCHEMA
  * Gemini provider (default when GEMINI_API_KEY is set). Uses the same v5 prompt,
  * schema and grounding guards as Groq via analyzeRecordWith().
  */
-export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+// Verified against GET /v1beta/models for this project's key (Nov 2026): newest stable Flash.
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
 
 export function geminiKey(): string | undefined {
   return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || undefined;
