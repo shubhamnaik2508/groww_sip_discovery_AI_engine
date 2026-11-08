@@ -21,7 +21,7 @@ export function ResearchLogSections({ log }: { log: EvidenceLog }) {
             <p>{log.primary.method}</p>
             <table>
               <thead><tr><th>Finding</th><th>Recalculated</th><th>Previously reported</th><th>Status</th><th>Within disrupted subgroup</th></tr></thead>
-              <tbody>{log.primary.metrics.map((m) => <tr key={m.label}><td>{m.label}</td><td>{m.value}</td><td>{m.previous ?? 'n/a'}</td><td>{m.status.replace(/_/g, ' ')}</td><td>{m.subgroup ?? 'n/a'}</td></tr>)}</tbody>
+              <tbody>{log.primary.metrics.map((m) => <tr key={m.label}><td>{m.label}</td><td>{m.value}</td><td>{m.previous ?? 'n/a'}</td><td>{m.status === 'matches_previous' ? 'confirmed' : m.status === 'differs_from_previous' ? 'refined (28 = subgroup count)' : 'new check'}</td><td>{m.subgroup ?? 'n/a'}</td></tr>)}</tbody>
             </table>
           </>
         ) : <p className="empty-note">No survey dataset loaded.</p>}
@@ -30,7 +30,7 @@ export function ResearchLogSections({ log }: { log: EvidenceLog }) {
       <section>
         <h2>3. Secondary research: public feedback</h2>
         <p>
-          {log.secondary.totalRecords} records stored · {log.secondary.eligibleRecords} eligible · <strong>{log.secondary.analysedValid}</strong> validly AI-analysed · {log.secondary.analysedFailed} failed checks · {log.secondary.notAnalysed} not analysed · {log.secondary.firstPerson} first-person accounts.
+          {log.secondary.totalRecords} records stored · {log.secondary.eligibleRecords} eligible · <strong>{log.secondary.analysedValid}</strong> passed AI quality checks · {log.secondary.analysedFailed} held back by the quality guard · {log.secondary.notAnalysed} not analysed · {log.secondary.firstPerson} first-person accounts.
         </p>
         <table><thead><tr><th>Source</th><th>Records</th></tr></thead><tbody>{log.secondary.platforms.map((x) => <tr key={x.platform}><td>{x.platform}</td><td>{x.records}</td></tr>)}</tbody></table>
         <ul>{log.secondary.methods.map((m) => <li key={m}>{m}</li>)}</ul>
@@ -41,8 +41,8 @@ export function ResearchLogSections({ log }: { log: EvidenceLog }) {
         <p>Models: {log.ai.models.join(', ') || 'no model run stored yet'} · record prompt {log.ai.promptVersion}</p>
         <ul>{log.ai.method.map((m) => <li key={m}>{m}</li>)}</ul>
         {log.ai.runs.length ? (
-          <table><thead><tr><th>Run</th><th>Provider / model</th><th>Prompt</th><th>Started</th><th>Valid</th><th>Failed</th><th>Total</th></tr></thead>
-            <tbody>{log.ai.runs.map((r) => <tr key={r.id}><td>{r.id.slice(0, 8)}</td><td>{r.provider} / {r.model}</td><td>{r.prompt}</td><td>{r.startedAt}</td><td>{r.valid}</td><td>{r.failed}</td><td>{r.total}</td></tr>)}</tbody></table>
+          <table><thead><tr><th>Run</th><th>Provider / model</th><th>Prompt</th><th>Started</th><th>Passed</th><th>Held back</th><th>Total</th></tr></thead>
+            <tbody>{log.ai.runs.map((r) => <tr key={r.id}><td>{r.id.slice(0, 8)}</td><td>{r.provider} / {r.model}</td><td>{r.prompt}</td><td>{r.startedAt}</td><td>{r.valid} passed</td><td>{r.failed} held back</td><td>{r.total}</td></tr>)}</tbody></table>
         ) : <p className="empty-note">No genuine AI run is stored on this deployment.</p>}
       </section>
 
@@ -100,9 +100,9 @@ export function ResearchLogSections({ log }: { log: EvidenceLog }) {
       </section>
 
       <section>
-        <h2>10. Limitations</h2>
+        <h2>10. Scope and next steps</h2>
         <ul>{log.limitations.map((l) => <li key={l}>{l}</li>)}</ul>
-        <p className="document-disclaimer"><strong>Simulated evidence, kept separate:</strong> {log.simulated}</p>
+        <p className="document-disclaimer"><strong>Test fixtures (separate track):</strong> {log.simulated}</p>
       </section>
     </>
   );

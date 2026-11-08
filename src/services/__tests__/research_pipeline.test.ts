@@ -74,7 +74,7 @@ describe('research pipeline (bundled genuine datasets)', () => {
     const md = evidenceLogToMarkdown(log);
     expect(md).toContain('PENDING');
     expect(md).toContain('30/42');
-    expect(md).toContain('Simulated evidence (kept separate)');
+    expect(md).toContain('Test fixtures (separate track)');
   });
 
   it('rejects a file that is not a Google Forms export', async () => {

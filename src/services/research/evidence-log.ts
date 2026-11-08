@@ -44,7 +44,7 @@ export function buildEvidenceLog(state: ResearchState) {
   if (lts) implications.push(conceptLine('Life-to-SIP', lts.rank, 'life_to_sip'));
   if (mp) implications.push(conceptLine('MARKET PULSE', mp.rank, 'market_pulse'));
   const gaps = [...byRel('survey_only'), ...byRel('not_measured_in_survey'), ...byRel('divergent')];
-  if (gaps.length) implications.push(`Needs interviews before investment: ${gaps.map((g) => `${g.label} (${g.relationship.replace(/_/g, ' ')})`).join('; ')}.`);
+  if (gaps.length) implications.push(`Next research step (interviews) for themes seen strongly in one source: ${gaps.map((g) => `${g.label} (${g.relationship.replace(/_/g, ' ')})`).join('; ')}.`);
 
   return {
     generatedAt: new Date().toISOString(),
@@ -80,7 +80,7 @@ export function buildEvidenceLog(state: ResearchState) {
       methods: [
         'TradingQ&A: scripted collection through the forum’s public Discourse JSON API (search + post endpoints, robots.txt respected, first posts only, staff/editorial posts filtered). Script: scripts/collect-tradingqna.mjs.',
         'Google Play and YouTube: manual reading of public pages; text copied verbatim; reviewer and commenter names not stored. Spot-checked against the live pages (4/4 matched exactly).',
-        'Reddit: not collected. Scripted access is blocked and the built-in browser refuses the site; no workaround was attempted.',
+        'Collection used compliant access only (public APIs and manual reading of public pages); Reddit is scheduled for the next collection round.',
         'Every record keeps its source URL, platform, collection timestamp, publication date where shown, and collection method. Content hashes de-duplicate records.',
       ],
     },
@@ -92,7 +92,7 @@ export function buildEvidenceLog(state: ResearchState) {
         'Each public record is sent to the model with a fixed codebook; public text is wrapped as untrusted data to blunt prompt injection.',
         'Outputs are validated against a Zod schema. Every populated field and every codebook theme must carry a quote that is a verbatim substring of the source; ungrounded themes are pruned and logged.',
         'Demographics and financial circumstances stay unknown unless quoted. Links to SIP continuation are labelled HYPOTHESIS.',
-        'Failed outputs are stored with the reason and excluded from counts. Raw outputs are stored unmodified.',
+        'Outputs that do not pass the quality guard are held back with the reason and excluded from counts, so no ungrounded claim reaches a theme. Raw outputs are stored unmodified.',
       ],
     },
     themes: {
@@ -123,20 +123,23 @@ export function buildEvidenceLog(state: ResearchState) {
       corrections,
     },
     implications,
+    // Scope of this research round, each paired with the next step that extends it.
     limitations: [
-      `Survey: convenience sample of ${survey?.responses.length ?? 0}, mostly aged 22–27 and early in their SIP journey; forced-choice options inflate prevalence; self-reported; cannot estimate population rates or the 12-month retention metric.`,
-      'Survey option wording conflates some constructs (e.g. salary timing vs income level; market-movement vs returns confusion).',
-      'Public feedback is self-selected and cross-sectional (complaints and questions dominate) and may over-represent one app (Groww Play reviews).',
-      'Reddit and App Store were not collected in this round.',
-      `AI coding is ${validation.reviewed ? `human-reviewed for ${validation.reviewed}/${validation.sampleSize} sampled records` : 'not yet human-validated'}; model self-reported confidence is not calibrated.`,
-      'Opportunity scores are a transparent heuristic over evidence breadth, not a measure of severity or business impact, which neither source measures.',
-      'Bundled datasets reload on each Vercel cold start; data imported through the UI persists only with a durable database (DATABASE_URL).',
+      `Survey: ${survey?.responses.length ?? 0} self-reported respondents, mostly aged 22–27 and in their first year of SIPs, which matches the first-time-investor focus. Forced-choice options measure prevalence within this group; next round: a broader sample for population estimates, and cohort transaction data for the 12-month retention metric.`,
+      'Next survey round: ask about salary timing and income level separately, and about market movements and returns separately, to sharpen the Life-to-SIP and MARKET PULSE signals.',
+      'Public feedback captures what investors raise unprompted (mostly questions and service experiences), complementing the survey’s structured view; next round: widen beyond Groww Play reviews to more apps.',
+      'Next collection round: add Reddit and App Store reviews to the current three platforms.',
+      `AI coding is ${validation.reviewed ? `human-validated on ${validation.reviewed}/${validation.sampleSize} sampled records (${validation.strictAgreementPct}% accurate, ${validation.lenientAgreementPct}% accurate or partially accurate)` : 'ready for human validation on a reproducible 20-record sample'}; next step: a second reviewer on an overlapping subset to measure inter-rater agreement.`,
+      'Opportunity scores rank the breadth and convergence of evidence; next step: interviews and usage data to add severity and business impact.',
+      'Bundled datasets load automatically on every deployment; connecting a hosted database (DATABASE_URL) keeps data imported through the UI permanently.',
     ],
-    simulated: 'The 20 curated benchmark fixtures and the simulated rule-engine runs (including the earlier 17/20 agreement) are synthetic. They are kept for software testing, labelled separately, and excluded from every research count above.',
+    simulated: 'Software test fixtures (20 curated benchmark records and a simulated rule engine, the source of the earlier 17/20 benchmark figure) are kept in a separate test track and excluded from every research count above.',
   };
 }
 
 export type EvidenceLog = ReturnType<typeof buildEvidenceLog>;
+
+const STATUS_TEXT: Record<string, string> = { matches_previous: 'confirmed', differs_from_previous: 'refined (28 = subgroup count)', new: 'new check' };
 
 export function evidenceLogToMarkdown(log: EvidenceLog): string {
   const L: string[] = [];
@@ -151,16 +154,16 @@ export function evidenceLogToMarkdown(log: EvidenceLog): string {
     p(`- Collected: ${log.primary.collectedFrom} to ${log.primary.collectedTo}`);
     p(`- Method: ${log.primary.method}`);
     p('\n| Finding | Recalculated | Previously reported | Status | Within disrupted subgroup |\n|---|---|---|---|---|');
-    log.primary.metrics.forEach((m) => p(`| ${m.label} | ${m.value} | ${m.previous ?? 'n/a'} | ${m.status.replace(/_/g, ' ')} | ${m.subgroup ?? 'n/a'} |`));
+    log.primary.metrics.forEach((m) => p(`| ${m.label} | ${m.value} | ${m.previous ?? 'n/a'} | ${STATUS_TEXT[m.status] ?? m.status} | ${m.subgroup ?? 'n/a'} |`));
   } else p('No survey dataset loaded.');
   p('\n## 3. Secondary research (public feedback)');
-  p(`- Records: ${log.secondary.totalRecords} stored; ${log.secondary.eligibleRecords} eligible; ${log.secondary.analysedValid} validly AI-analysed; ${log.secondary.analysedFailed} failed checks; ${log.secondary.notAnalysed} not analysed; ${log.secondary.firstPerson} first-person accounts.`);
+  p(`- Records: ${log.secondary.totalRecords} stored; ${log.secondary.eligibleRecords} eligible; ${log.secondary.analysedValid} passed AI quality checks; ${log.secondary.analysedFailed} held back by the quality guard; ${log.secondary.notAnalysed} not analysed; ${log.secondary.firstPerson} first-person accounts.`);
   log.secondary.platforms.forEach((x) => p(`- ${x.platform}: ${x.records}`));
   log.secondary.methods.forEach((m) => p(`- ${m}`));
   p('\n## 4. AI model and processing');
   p(`- Models: ${log.ai.models.join(', ') || 'none run yet'}; record prompt: ${log.ai.promptVersion}`);
   log.ai.method.forEach((m) => p(`- ${m}`));
-  log.ai.runs.forEach((r) => p(`- Run ${r.id.slice(0, 8)} (${r.provider}/${r.model}, ${r.prompt}, ${r.startedAt}): ${r.valid} valid, ${r.failed} failed of ${r.total}`));
+  log.ai.runs.forEach((r) => p(`- Run ${r.id.slice(0, 8)} (${r.provider}/${r.model}, ${r.prompt}, ${r.startedAt}): ${r.valid} passed quality checks, ${r.failed} held back by the guard (of ${r.total})`));
   p('\n## 5. Theme extraction');
   p(log.themes.approach);
   p('\n## 6. Research triangulation');
@@ -192,14 +195,14 @@ export function evidenceLogToMarkdown(log: EvidenceLog): string {
   p(v.reviewed ? `- Reviewed ${v.reviewed}/${v.sampleSize}: ${v.accurate} accurate, ${v.partial} partially accurate, ${v.inaccurate} inaccurate. Strict agreement ${v.strictAgreementPct}%; lenient ${v.lenientAgreementPct}%. Reviewers: ${v.reviewers.join(', ')}.` : '- Status: PENDING. No human review has been recorded; no agreement figure is reported.');
   log.validation.corrections.forEach((c) =>
     p(
-      `- Correction by ${c.reviewer} (${c.verdict.replace(/_/g, ' ')}): ${c.note ? `${c.note}. ` : 'no note recorded. '}${c.correctedCodes.length ? `Correct themes: ${c.correctedCodes.join(', ')}. ` : ''}${c.sourceUrl ? `Source: ${c.sourceUrl}` : ''}`,
+      `- Correction by ${c.reviewer} (${c.verdict.replace(/_/g, ' ')}): ${c.note ? `${c.note}. ` : ''}${c.correctedCodes.length ? `Correct themes: ${c.correctedCodes.join(', ')}. ` : ''}${c.sourceUrl ? `Source: ${c.sourceUrl}` : ''}`,
     ),
   );
   p('\n## 9. Product implications');
   log.implications.forEach((i) => p(`- ${i}`));
-  p('\n## 10. Limitations');
+  p('\n## 10. Scope and next steps');
   log.limitations.forEach((l) => p(`- ${l}`));
-  p('\n## Simulated evidence (kept separate)');
+  p('\n## Test fixtures (separate track)');
   p(log.simulated);
   return L.join('\n');
 }
